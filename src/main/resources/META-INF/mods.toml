@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[52,)"
+license="MIT"
+
+[[mods]]
+modId="evolutionmod"
+version="1.0.0"
+displayName="Evolution Mod"
+description='''
+Soumet Minecraft aux lois de l'évolution darwinienne.
+Les mobs et plantes accumulent des mutations génétiques au fil des jours,
+faisant évoluer leurs apparences, capacités et comportements.
+'''
+
+[[dependencies.evolutionmod]]
+    modId="forge"
+    mandatory=true
+    versionRange="[52,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.evolutionmod]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.21.1,1.22)"
+    ordering="NONE"
+    side="BOTH"

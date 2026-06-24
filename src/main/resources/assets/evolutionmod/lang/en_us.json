@@ -1,0 +1,16 @@
+{
+  "item.evolutionmod.mutant_meat": "Viande Mutante",
+  "item.evolutionmod.genetic_crystal": "Cristal Génomique",
+  "item.evolutionmod.mutant_fruit": "Fruit Muté",
+  
+  "block.evolutionmod.mutant_log": "Bûche Mutante",
+  "block.evolutionmod.bioluminescent_leaves": "Feuilles Bioluminescentes",
+  
+  "evolutionmod.evolution.speciation": "Nouvelle espèce détectée : %s !",
+  "evolutionmod.evolution.day": "Cycle évolutif du Jour %d",
+  "evolutionmod.command.status": "Statut Évolutif",
+  "evolutionmod.command.inspect": "Inspecter le Génome",
+  
+  "attribute.evolutionmod.genetic_scale": "Échelle Génétique",
+  "attribute.evolutionmod.venom_power": "Puissance Vénéneuse"
+}

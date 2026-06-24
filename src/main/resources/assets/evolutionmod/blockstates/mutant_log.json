@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "axis=y": { "model": "evolutionmod:block/mutant_log" },
+    "axis=x": { "model": "evolutionmod:block/mutant_log", "x": 90, "y": 90 },
+    "axis=z": { "model": "evolutionmod:block/mutant_log", "x": 90 }
+  }
+}

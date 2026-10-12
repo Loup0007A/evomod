@@ -80,18 +80,18 @@ public final class SelfTest {
         try {
             switch (scenario) {
                 case 40 -> setupScene(sp);
-                case 170 -> EvoNetwork.sendToPlayer(sp, new JournalDataMsg(EvolutionManager.buildJournal(sp)));
-                case 400 -> {
+                case 280 -> EvoNetwork.sendToPlayer(sp, new JournalDataMsg(EvolutionManager.buildJournal(sp)));
+                case 520 -> {
                     if (sp.level().getEntity(zombieId) instanceof LivingEntity z) EvolutionScannerItem.scan(sp, z);
                 }
-                case 520 -> {
+                case 640 -> {
                     if (labPos != null && sp.level().getBlockEntity(labPos) instanceof GeneticLabBlockEntity lab
                         && sp.level().getEntity(zombieId) instanceof LivingEntity zombie) {
                         fillLab(sp.serverLevel(), lab, zombie);
                         sp.openMenu(lab);
                     }
                 }
-                case 1200 -> server.halt(false);
+                case 1400 -> server.halt(false);
                 default -> { }
             }
         } catch (Throwable t) {

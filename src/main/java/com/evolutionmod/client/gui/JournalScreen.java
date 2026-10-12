@@ -83,6 +83,7 @@ public class JournalScreen extends Screen {
     private int wx, wy, ww, wh;
     private static final int HEADER = 24;
     private static final int TABS_H = 16;
+    private static final int LIST_W = 140;
 
     public JournalScreen(CompoundTag data) {
         super(Component.translatable("evolutionmod.journal.title"));
@@ -258,7 +259,7 @@ public class JournalScreen extends Screen {
             Component text = EvolutionCommand.historyText(e);
             String s = GuiDraw.fit(font, text.getString(), rw - 60);
             g.drawString(font, s, rx + 14, line, GuiDraw.TEXT, false);
-            String d = "J" + e.day();
+            String d = Component.translatable("evolutionmod.journal.day", e.day()).getString();
             g.drawString(font, d, rx + rw - 6 - font.width(d), line, GuiDraw.TEXT_FAINT, false);
             line += 11;
         }
@@ -286,19 +287,21 @@ public class JournalScreen extends Screen {
     private void renderSpecies(GuiGraphics g, int x, int y, int w, int h, int mx, int my, List<Component> tip) {
         // Filtres
         int fx = x;
+        int chipW = (LIST_W - 3 * 2) / Filter.values().length;
         for (Filter f : Filter.values()) {
-            int fw = font.width(f.label()) + 10;
+            int fw = chipW;
             boolean active = f == filter;
             boolean hover = GuiDraw.inside(mx, my, fx, y, fw, 12);
             g.fill(fx, y, fx + fw, y + 12, active ? 0xFF1E3442 : hover ? 0xFF16252F : 0xFF0D161D);
             g.renderOutline(fx, y, fw, 12, active ? GuiDraw.ACCENT : GuiDraw.BORDER);
-            g.drawCenteredString(font, f.label(), fx + fw / 2, y + 2, active ? GuiDraw.TEXT : GuiDraw.TEXT_DIM);
+            g.drawCenteredString(font, GuiDraw.fit(font, f.label().getString(), fw - 4), fx + fw / 2, y + 2,
+                active ? GuiDraw.TEXT : GuiDraw.TEXT_DIM);
             fx += fw + 2;
         }
 
         listX = x;
         listY = y + 16;
-        listW = 138;
+        listW = LIST_W;
         listH = h - 16;
         GuiDraw.panel(g, listX, listY, listW, listH);
         List<SpeciesRecord> rows = filtered();
@@ -518,9 +521,10 @@ public class JournalScreen extends Screen {
         iy += 11;
         GuiDraw.bar(g, ix, iy, infoW - 16, 5, div / 0.35, GuiDraw.divergenceColor(div));
         iy += 11;
-        g.drawString(font, Component.translatable("evolutionmod.tip.mutations", playerGenome.totalMutations(),
-            playerGenome.generation()), ix, iy, GuiDraw.TEXT_DIM, false);
-        iy += 14;
+        Component mutLine = Component.translatable("evolutionmod.tip.mutations", playerGenome.totalMutations(),
+            playerGenome.generation());
+        g.drawWordWrap(font, mutLine, ix, iy, infoW - 12, GuiDraw.TEXT_DIM);
+        iy += font.split(mutLine, infoW - 12).size() * 9 + 5;
         g.drawWordWrap(font, Component.translatable("evolutionmod.journal.self.explain"), ix, iy, infoW - 12, GuiDraw.TEXT_FAINT);
         int traitsY = iy + font.split(Component.translatable("evolutionmod.journal.self.explain"), infoW - 12).size() * 9 + 6;
         int tx = ix;
@@ -598,8 +602,9 @@ public class JournalScreen extends Screen {
                 }
             } else if (tab == Tab.SPECIES) {
                 int fx = cx;
+                int chipW = (LIST_W - 3 * 2) / Filter.values().length;
                 for (Filter f : Filter.values()) {
-                    int fw = font.width(f.label()) + 10;
+                    int fw = chipW;
                     if (GuiDraw.inside(mx, my, fx, cy, fw, 12)) {
                         filter = f;
                         listScroll = 0;

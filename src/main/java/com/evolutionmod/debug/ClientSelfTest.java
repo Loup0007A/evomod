@@ -30,7 +30,7 @@ public final class ClientSelfTest {
     private static int inGame;
     private static int onScreen;
     private static Object lastScreen;
-    private static boolean journalDone, scanDone;
+    private static boolean journalDone, scanDone, hudDone;
 
     @SubscribeEvent
     public static void onTick(TickEvent.ClientTickEvent.Post event) {
@@ -49,7 +49,10 @@ public final class ClientSelfTest {
                 List.of("#species:minecraft:zombie", "Neozombimorphus")));
             HudOverlay.push(new NotifyMsg(NotifyMsg.Kind.DAILY, "evolutionmod.notify.daily", List.of("42", "318", "64")));
         }
-        if (inGame == 120 && mc.screen == null) shot(mc, "01_hud_scanner");
+        if (!hudDone && inGame >= 160 && mc.screen == null) {
+            hudDone = true;
+            shot(mc, "01_hud_scanner");
+        }
 
         if (mc.screen instanceof JournalScreen js && !journalDone) {
             switch (onScreen) {

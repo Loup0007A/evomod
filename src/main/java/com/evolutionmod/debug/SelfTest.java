@@ -23,6 +23,13 @@ import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
+import com.evolutionmod.core.Phenotype;
+import com.evolutionmod.items.EvolutionScannerItem;
+import com.evolutionmod.network.EvoNetwork;
+import com.evolutionmod.network.JournalDataMsg;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -51,8 +58,50 @@ public final class SelfTest {
         countdown = 60;
     }
 
+    // ── Scénario visuel (client de test connecté) ──
+    private static final boolean KEEP = Boolean.getBoolean("evolutionmod.selftest.keep");
+    private static ServerPlayer tester;
+    private static int scenario = -1;
+    private static volatile int zombieId = -1;
+    private static volatile BlockPos labPos;
+
+    @SubscribeEvent
+    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (!ENABLED || !KEEP || !(event.getEntity() instanceof ServerPlayer sp)) return;
+        tester = sp;
+        scenario = 0;
+        sp.getServer().getPlayerList().op(sp.getGameProfile());
+    }
+
+    private static void scenarioTick(MinecraftServer server) {
+        if (scenario < 0 || tester == null) return;
+        scenario++;
+        ServerPlayer sp = tester;
+        try {
+            switch (scenario) {
+                case 40 -> setupScene(sp);
+                case 170 -> EvoNetwork.sendToPlayer(sp, new JournalDataMsg(EvolutionManager.buildJournal(sp)));
+                case 400 -> {
+                    if (sp.level().getEntity(zombieId) instanceof LivingEntity z) EvolutionScannerItem.scan(sp, z);
+                }
+                case 520 -> {
+                    if (labPos != null && sp.level().getBlockEntity(labPos) instanceof GeneticLabBlockEntity lab
+                        && sp.level().getEntity(zombieId) instanceof LivingEntity zombie) {
+                        fillLab(sp.serverLevel(), lab, zombie);
+                        sp.openMenu(lab);
+                    }
+                }
+                case 1200 -> server.halt(false);
+                default -> { }
+            }
+        } catch (Throwable t) {
+            EvolutionMod.LOGGER.error("[SELFTEST] scénario en échec", t);
+        }
+    }
+
     @SubscribeEvent
     public static void onTick(TickEvent.ServerTickEvent.Post event) {
+        if (ENABLED) scenarioTick(event.getServer());
         if (!ENABLED || countdown < 0) return;
         if (--countdown != 0) return;
         MinecraftServer server = event.getServer();
@@ -63,7 +112,7 @@ public final class SelfTest {
             EvolutionMod.LOGGER.error("[SELFTEST] EXCEPTION", t);
         }
         EvolutionMod.LOGGER.info(failures == 0 ? "[SELFTEST] RESULT: OK" : "[SELFTEST] RESULT: FAILED ({})", failures);
-        if (!Boolean.getBoolean("evolutionmod.selftest.keep")) server.halt(false);
+        if (!KEEP) server.halt(false);
     }
 
     private static void check(boolean ok, String what) {
@@ -190,4 +239,80 @@ public final class SelfTest {
         check(!EvolutionManager.speciesComponent("minecraft:zombie").getString().isEmpty(), "nom d'espèce");
         server.saveEverything(true, true, true);
     }
+
+    /** Côté serveur intégré : décor, créatures mutées, laboratoire garni. */
+    private static void setupScene(ServerPlayer sp) {
+        ServerLevel level = sp.serverLevel();
+        level.setDayTime(6000);
+        sp.setInvulnerable(true);
+        sp.getInventory().clearContent();
+        sp.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(ModItems.EVOLUTION_SCANNER.get()));
+
+        for (int i = 0; i < 25; i++) EvolutionManager.runCycle(level.getServer(), EvolutionManager.currentDay(level.getServer()));
+
+        Vec3 look = Vec3.directionFromRotation(0, sp.getYRot());
+        Vec3 front = sp.position().add(look.scale(4));
+
+        Mob zombie = EntityType.ZOMBIE.create(level);
+        if (zombie != null) {
+            zombie.moveTo(front.x, sp.getY(), front.z, sp.getYRot() + 180, 0);
+            zombie.setNoAi(true);
+            zombie.setPersistenceRequired();
+            level.addFreshEntity(zombie);
+            Genome g = EvolutionCapability.genome(zombie);
+            if (g != null) {
+                g.set(GeneType.PIGMENT, 0.8);
+                g.set(GeneType.HUE, 280);
+                g.set(GeneType.GLOW, 0.8);
+                g.set(GeneType.SIZE, 1.35);
+                g.set(GeneType.VENOM, 0.5);
+                g.set(GeneType.STRENGTH, 1.8);
+                g.mutate(level.random, 1.0, 0.05);
+                Phenotype.apply(zombie, g, true);
+                EvolutionManager.sync(zombie);
+            }
+            zombieId = zombie.getId();
+        }
+        Vec3 side = Vec3.directionFromRotation(0, sp.getYRot() + 50).scale(5);
+        for (int i = 0; i < 2; i++) {
+            Mob cow = EntityType.COW.create(level);
+            if (cow == null) continue;
+            cow.moveTo(sp.getX() + side.x + i * 2, sp.getY(), sp.getZ() + side.z, 0, 0);
+            cow.setNoAi(true);
+            level.addFreshEntity(cow);
+            Genome g = EvolutionCapability.genome(cow);
+            if (g != null) {
+                g.set(GeneType.PIGMENT, 0.6);
+                g.set(GeneType.HUE, 140 + i * 60);
+                g.set(GeneType.SIZE, 0.7 + i * 0.6);
+                Phenotype.apply(cow, g, true);
+                EvolutionManager.sync(cow);
+            }
+        }
+
+        // Laboratoire derrière le joueur, en pleine fusion
+        labPos = sp.blockPosition().offset(-(int) Math.round(look.x * 3), 0, -(int) Math.round(look.z * 3));
+        level.setBlock(labPos, ModBlocks.GENETIC_LAB.get().defaultBlockState(), 3);
+        sp.getInventory().add(GeneticCrystalItem.withGenome(new ItemStack(ModItems.GENETIC_CRYSTAL.get()),
+            zombie != null && EvolutionCapability.genome(zombie) != null ? EvolutionCapability.genome(zombie) : Genome.fromProfile(
+                com.evolutionmod.genetics.SpeciesProfile.forPlant("oak"))));
+        sp.getInventory().add(new ItemStack(ModItems.MUTAGEN.get(), 8));
+        sp.getInventory().add(new ItemStack(ModItems.EVOLUTION_JOURNAL.get()));
+        // Regarder le zombie
+        sp.connection.teleport(sp.getX(), sp.getY(), sp.getZ(), sp.getYRot(), 8f);
+    }
+
+    private static void fillLab(ServerLevel level, GeneticLabBlockEntity lab, LivingEntity zombie) {
+        {
+            Genome zg = EvolutionCapability.genome(zombie);
+            if (zg != null) {
+                Genome other = zg.copy();
+                other.mutate(level.random, 1.0, 0.15);
+                lab.container().setItem(0, GeneticCrystalItem.withGenome(new ItemStack(ModItems.GENETIC_CRYSTAL.get()), zg));
+                lab.container().setItem(1, GeneticCrystalItem.withGenome(new ItemStack(ModItems.GENETIC_CRYSTAL.get()), other));
+                lab.container().setItem(2, new ItemStack(Items.REDSTONE, 16));
+            }
+        }
+    }
+
 }

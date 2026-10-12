@@ -1,213 +1,86 @@
 # 🧬 Evolution Mod — Minecraft Forge 1.21.1
 
-> *"La vie ne fait pas ce qu'on lui dit. Elle évolue."*
+> *« Ce ne sont pas les espèces les plus fortes qui survivent, mais celles qui s'adaptent le mieux au changement. »*
 
-## Vue d'ensemble
+Evolution Mod soumet Minecraft aux lois de l'évolution. À chaque aube, les créatures, les plantes et même le joueur accumulent des mutations. **Votre façon de jouer devient la pression de sélection** : les mobs qui vous blessent transmettent leurs gènes, ceux que vous chassez disparaissent du pool génétique, et vos élevages deviennent de la sélection artificielle. Au fil des jours, les espèces divergent et donnent naissance à de nouvelles lignées.
 
-**Evolution Mod** soumet Minecraft aux lois de la biologie évolutive. Chaque mob, chaque arbre, chaque bûche et chaque fruit accumule des **mutations génétiques** au fil des jours. Le monde n'est jamais statique : après quelques centaines de jours, vos zombies pourraient être des colosses bioluminescents venimeux, et vos chênes pourraient porter des fruits téléportants.
+## 📦 Installation
 
----
+1. Installez **Minecraft 1.21.1** avec **Forge 52.0.x** ou plus récent.
+2. Téléchargez le jar :
+   - dans les [Releases](https://github.com/Loup0007A/evomod/releases), ou
+   - directement dans le dossier [`releases/`](releases/) du dépôt (`evolutionmod-latest.jar`).
+3. Copiez-le dans le dossier `mods/` de votre installation.
 
-## 🏗️ Architecture du mod
+Le mod doit être installé sur le serveur **et** sur les clients.
 
-```
-com.evolutionmod/
-│
-├── EvolutionMod.java                  ← Point d'entrée Forge
-│
-├── genetics/
-│   ├── Gene.java                      ← Unité génétique de base (valeur + mutation)
-│   ├── Genome.java                    ← Génome complet (50+ gènes par entité)
-│   └── GeneticEvent.java              ← Historique des événements évolutifs
-│
-├── core/
-│   ├── EvolutionCapability.java       ← Attache un génome à chaque LivingEntity
-│   ├── EvolutionManager.java          ← Orchestre les cycles d'évolution quotidiens
-│   └── EvolutionCommand.java          ← Commandes /evolution
-│
-├── events/
-│   ├── DayChangeEventHandler.java     ← Déclenche l'évolution à chaque aube
-│   └── EntityEvolutionHandler.java    ← Applique les traits génétiques in-game
-│
-├── world/
-│   ├── TreeEvolutionHandler.java      ← Évolution arbres, bûches, fruits
-│   └── EvolutionDataSavedData.java    ← Persistance (world/data/)
-│
-├── network/
-│   ├── EvolutionNetwork.java          ← Canal de synchronisation client/serveur
-│   ├── SyncGenomePacket.java          ← Sync génome entité → client
-│   └── EvolutionEventPacket.java      ← Broadcast des speciations
-│
-└── data/
-    └── MutantMeatItem.java            ← Item viande mutante avec effets génétiques
-```
+## 🎮 Prise en main
 
----
+| Objet / bloc | Recette | Rôle |
+|---|---|---|
+| **Journal d'évolution** | livre + éclat d'améthyste | Ouvre l'encyclopédie évolutive (aussi : touche **J**) |
+| **Scanner d'évolution** | vitre, fer, redstone, améthyste | Clic droit sur une créature : analyse génétique détaillée. En main : génome de la créature visée en surimpression |
+| **Cristal génomique** | 4 améthystes + verre (×2) | Séquence le génome d'une créature ; Maj + clic droit pour l'injecter dans une autre de la même espèce |
+| **Mutagène** | œil d'araignée fermenté, poudre lumineuse, améthyste, fiole | Réactif de mutagenèse au laboratoire |
+| **Laboratoire génétique** | fer, verre, cuivre, alambic | Fusion, clonage et mutagenèse de cristaux |
 
-## 🧬 Système de Gènes
+### Le Journal d'évolution
+- **Monde** : jour, cycles, mutations, spéciations, pression environnementale (graphique) et classement des espèces les plus divergentes.
+- **Espèces** : fiche complète de chaque espèce — arbre des lignées, population, naissances, chasses, courbe de divergence, traits, et tous les gènes comparés à l'ancêtre vanilla (survolez un gène pour sa description).
+- **Histoire** : chronologie des spéciations et des premières observations.
+- **Mon génome** : votre propre évolution.
 
-### Types de gènes (50+)
+### Le laboratoire
+| Emplacement A | Emplacement B | Résultat |
+|---|---|---|
+| cristal plein | cristal plein (même espèce) | **Fusion** : cristal hybride (A est conservé) |
+| cristal plein | cristal vierge | **Clonage** : copie de A |
+| cristal plein | mutagène | **Mutagenèse** : A subit 2 à 4 mutations forcées |
 
-**Morphologiques** (apparence)
-| Gène | Plage | Effet |
-|------|-------|-------|
-| `BODY_SIZE` | 0.1 – 6.0 | Taille via attribut `SCALE` |
-| `COLOR_HUE` | 0 – 360 | Teinte HSV (stockée en NBT) |
-| `COLOR_SATURATION` | 0 – 1 | Saturation de couleur |
-| `BIOLUMINESCENCE` | 0 – 15 | Glow tag + remplacement feuilles |
-| `APPENDAGE_COUNT` | 0 – 8 | Appendices supplémentaires |
-| `EYE_TYPE` | 0 – 4 | Normal / Multiple / Absent / IR |
-| `SKIN_TEXTURE` | 0 – 5 | Normal / Écailleux / Épineux / Lumineux |
+Chaque opération consomme 1 redstone ou 1 poudre lumineuse.
 
-**Capacités**
-| Gène | Plage | Effet in-game |
-|------|-------|---------------|
-| `SPEED` | 0.1 – 5.0 | `MOVEMENT_SPEED` × 0.1 |
-| `STRENGTH` | 0.1 – 10.0 | `ATTACK_DAMAGE` |
-| `DEFENSE` | 0 – 1 | `KNOCKBACK_RESISTANCE` + réduction dégâts |
-| `HEALTH_MAX` | 1 – 500 | `MAX_HEALTH` |
-| `FLIGHT` | 0 – 2 | Gravité réduite (planement, vol actif) |
-| `VENOMOUS` | 0 – 10 | Poison appliqué à chaque attaque |
-| `REGENERATION` | 0 – 2 | Effet Regeneration passif |
+## 🧬 Fonctionnement
 
-**Végétaux** (arbres uniquement)
-| Gène | Plage | Effet |
-|------|-------|-------|
-| `FRUIT_EFFECT` | 0 – 20 | Effets de potion en mangeant |
-| `WOOD_HARDNESS` | 0 – 10 | Durabilité des outils + drop spécial |
-| `BIOLUMINESCENCE` | 0 – 15 | Remplacement feuilles → Shroomlight |
-| `HEIGHT_MAX` | 1 – 30 | Hauteur maximale à la pousse |
+### Gènes
+Tous les gènes partent de la valeur **vanilla** : une créature non mutée est identique à l'originale.
 
----
+| Catégorie | Gènes |
+|---|---|
+| Morphologie | taille, teinte, pigmentation, bioluminescence |
+| Physique | vitesse, force, vitalité, carapace, agilité, ténacité |
+| Métabolisme | régénération, résistance au feu, immunité, résistance au soleil (morts-vivants) |
+| Comportement | agressivité (distance de détection), camouflage (invisibilité passagère) |
+| Armes biologiques | venin, toucher glacial, puissance explosive (creepers) |
+| Végétaux | croissance, rendement, puissance des fruits, densité du bois |
 
-## ⚙️ Mécanique d'évolution
+Les effets passent par des modificateurs d'attributs Minecraft (réversibles et compatibles avec les autres mods).
 
-### Cycle quotidien
-Chaque aube Minecraft (toutes les 24 000 ticks ≈ 20 min réelles) :
+### Population et sélection
+- Chaque espèce possède un **génome de population** dont naissent les nouveaux individus (avec une variation personnelle, et parfois un mutant spontané).
+- **Sélection** : blesser ou tuer un joueur, survivre, se reproduire → l'espèce se rapproche de cet individu. Être tué par un joueur → l'espèce s'en éloigne.
+- **Reproduction** : les bébés héritent d'un vrai croisement génétique de leurs parents.
+- **Spéciation** : tous les 7 % de divergence avec l'ancêtre, une nouvelle lignée est nommée et annoncée.
+- Le joueur évolue lui aussi (doucement), et manger de la viande mutante lui transmet un peu des gènes de la proie.
 
-```
-1. onDayChange() déclenché par DayChangeEventHandler
-2. Calcul de la pression environnementale globale :
-   pression = min(1.0, 0.05 + (jour / 1000) × 0.95)
-3. Pour chaque LivingEntity chargée :
-   a. Récupérer le génome via Capability
-   b. applyDailyMutation(pression, jour)
-   c. Appliquer les mutations aux attributs Minecraft
-4. Évolution des génomes d'espèces d'arbres
-5. Sauvegarde (EvolutionDataSavedData)
-```
+### Plantes
+Arbres et cultures ont leur propre génome : pousse accélérée, récoltes supplémentaires, fruits mutants aux effets variés, feuillages bioluminescents colorés et bois mutant.
 
-### Types de mutations
-
-```
-Mutation ponctuelle (85%)  → δ ∼ N(0, σ)    petite variation
-Mutation modérée   (12%)  → δ ∼ U(-r, r)    variation moyenne  
-Mutation radicale  (3%)   → saut vers valeur aléatoire dans [min, max]
-```
-
-### Spéciation
-Quand une entité atteint **50 mutations cumulées**, elle a 15% de chances de diverger vers une nouvelle lignée. Sa lignée devient par exemple :
-```
-zombie → zombie>NeoMorphus → zombie>NeoMorphus>OmegaVex
-```
-Un message est broadcast à tous les joueurs.
-
-### Dérive génétique
-Indépendamment de la pression sélective, une dérive neutre de 5% par jour mène à une divergence lente même sans pression.
-
----
-
-## 🎮 Commandes
+## ⌨️ Commandes
 
 | Commande | Accès | Description |
-|----------|-------|-------------|
-| `/evolution status` | Tous | Statistiques mondiales d'évolution |
-| `/evolution inspect` | Tous | Génome de l'entité regardée |
-| `/evolution history` | Tous | Historique des speciations |
-| `/evolution genome` | Tous | Message sur le joueur |
-| `/evolution accelerate` | OP | Force 5 cycles d'évolution |
+|---|---|---|
+| `/evolution` | tous | Ouvre le journal |
+| `/evolution inspect [cible]` | tous | Analyse la créature visée |
+| `/evolution species` | tous | Classement des espèces dans le chat |
+| `/evolution history` | tous | Derniers événements |
+| `/evolution cycle [n]` | op | Force n cycles d'évolution |
+| `/evolution reset` | op | Efface l'histoire évolutive du monde |
 
----
+## ⚙️ Configuration
+`config/evolutionmod-common.toml` : taux de mutation, force de la sélection, évolution du joueur et son intensité, cycles rattrapés, évolution des plantes, annonces, drops génétiques, liste d'exclusion d'entités.
 
-## 🍖 Drops Génétiques
-
-### Cristal Génomique
-- Drop aléatoire de tout mob ayant **20+ mutations**
-- Contient les données génétiques complètes (NBT)
-- Peut être utilisé pour étudier l'évolution
-
-### Viande Mutante
-- Drop des mobs à génome divergent
-- Effets selon les gènes du mob tué :
-  - Venin élevé → Poison au joueur
-  - Bioluminescence → Vision nocturne
-  - Force élevée → Buff de force temporaire
-  - 50+ mutations → Effet aléatoire (chaos)
-
-### Bois Muté
-- Drop des bûches d'arbres à `WOOD_HARDNESS > 7`
-- Renommé et coloré selon les mutations
-- NBT contient le génome de l'arbre
-
----
-
-## 🏗️ Installation
-
-### Prérequis
-- Java 21+
-- Minecraft 1.21.1
-- Forge 52.0.7
-
-### Build
+## 🔧 Compilation
 ```bash
 ./gradlew build
 ```
-Le `.jar` est dans `build/libs/evolutionmod-1.0.0.jar`
-
-### Installation
-Copier dans `mods/` de votre installation Forge 1.21.1.
-
----
-
-## 🔧 Extensions possibles
-
-Ce mod est conçu pour être étendu :
-
-### Renderer de couleurs génétiques
-Créer un `IEntityRenderer` custom qui lit `GeneticColorRGB` du NBT persistant et applique la teinte HSV comme overlay de texture.
-
-### Mixins pour comportements avancés
-- `MixinZombie` : modifier les animations selon `APPENDAGE_COUNT`
-- `MixinSpider` : vrai climbing selon le gène `CLIMBING`
-- `MixinEntity` : vol actif selon `FLIGHT`
-
-### Blocs custom
-- `BioluminescentLeavesBlock` : feuilles lumineuses avec `getLightEmission()` basé sur le gène
-- `MutantLogBlock` : bûches colorées selon `COLOR_HUE`
-
-### GUI de séquençage génomique
-Un écran de microscope pour analyser les cristaux génomiques et voir l'arbre phylogénétique.
-
-### Sélection naturelle active
-Implémenter un système où les entités moins adaptées ont un taux de mortalité plus élevé, forçant une vraie sélection darwinienne.
-
----
-
-## 📊 Paramètres d'équilibrage
-
-Dans `EvolutionManager.java` :
-```java
-// Vitesse d'évolution (0.02 = 2% de mutations par gène par jour par défaut)
-double mutationRate = 0.02 + new Random().nextDouble() * 0.03;
-
-// Pression environnementale maximale
-globalEnvironmentalPressure = Math.min(1.0, 0.05 + (newDay / 1000.0) * 0.95);
-
-// Seuil de spéciation
-if (totalMutations % 50 == 0 && random.nextDouble() < 0.15)
-```
-
----
-
-*"Ce ne sont pas les espèces les plus fortes qui survivent, ni les plus intelligentes, mais celles qui s'adaptent le mieux au changement."*  
-— Charles Darwin
+Le jar est produit dans `build/libs/`. Chaque push sur `main` compile le mod via GitHub Actions, publie une release et dépose le jar dans `releases/`.

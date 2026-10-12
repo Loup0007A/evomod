@@ -28,7 +28,9 @@ minecraft {
         server {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
+            property 'forge.logging.console.level', 'info'
+            property 'evolutionmod.selftest', System.getenv('EVO_SELFTEST') ?: 'false'
+            args '--nogui'
             mods {
                 evolutionmod {
                     source sourceSets.main

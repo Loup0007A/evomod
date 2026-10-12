@@ -121,7 +121,7 @@ public final class HudOverlay {
             if (alpha < 8) continue;
             List<FormattedCharSequence> lines = font.split(n.body(), w - 16);
             int h = 16 + lines.size() * 9 + 3;
-            int x = screenW - 6 - (int) (w * slide);
+            int x = 6 - (int) (w * (1f - slide)); // en haut à gauche : les toasts vanilla occupent la droite
             g.fill(x, y, x + w, y + h, GuiDraw.withAlpha(0x0E161C, alpha));
             g.fill(x, y, x + 2, y + h, GuiDraw.withAlpha(n.kind().color, alpha));
             g.renderOutline(x, y, w, h, GuiDraw.withAlpha(0x2F4A5C, alpha));

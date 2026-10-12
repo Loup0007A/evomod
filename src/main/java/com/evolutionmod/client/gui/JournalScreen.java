@@ -287,15 +287,13 @@ public class JournalScreen extends Screen {
     private void renderSpecies(GuiGraphics g, int x, int y, int w, int h, int mx, int my, List<Component> tip) {
         // Filtres
         int fx = x;
-        int chipW = (LIST_W - 3 * 2) / Filter.values().length;
         for (Filter f : Filter.values()) {
-            int fw = chipW;
+            int fw = font.width(f.label()) + 10;
             boolean active = f == filter;
             boolean hover = GuiDraw.inside(mx, my, fx, y, fw, 12);
             g.fill(fx, y, fx + fw, y + 12, active ? 0xFF1E3442 : hover ? 0xFF16252F : 0xFF0D161D);
             g.renderOutline(fx, y, fw, 12, active ? GuiDraw.ACCENT : GuiDraw.BORDER);
-            g.drawCenteredString(font, GuiDraw.fit(font, f.label().getString(), fw - 4), fx + fw / 2, y + 2,
-                active ? GuiDraw.TEXT : GuiDraw.TEXT_DIM);
+            g.drawCenteredString(font, f.label(), fx + fw / 2, y + 2, active ? GuiDraw.TEXT : GuiDraw.TEXT_DIM);
             fx += fw + 2;
         }
 
@@ -337,9 +335,9 @@ public class JournalScreen extends Screen {
 
         // Détail
         detailX = listX + listW + 6;
-        detailY = y;
+        detailY = y + 16;
         detailW = w - listW - 6;
-        detailH = h;
+        detailH = h - 16;
         GuiDraw.panel(g, detailX, detailY, detailW, detailH);
         SpeciesRecord r = selectedRecord();
         if (r == null) {
@@ -602,9 +600,8 @@ public class JournalScreen extends Screen {
                 }
             } else if (tab == Tab.SPECIES) {
                 int fx = cx;
-                int chipW = (LIST_W - 3 * 2) / Filter.values().length;
                 for (Filter f : Filter.values()) {
-                    int fw = chipW;
+                    int fw = font.width(f.label()) + 10;
                     if (GuiDraw.inside(mx, my, fx, cy, fw, 12)) {
                         filter = f;
                         listScroll = 0;

@@ -57,6 +57,9 @@ public final class ClientModEvents {
             ModBlocks.BIOLUMINESCENT_LEAVES_ITEM.get());
         event.register((stack, tint) -> tint == 0 ? (BioluminescentLeavesBlock.segmentToRgb(6) | 0xFF000000) : -1,
             ModBlocks.MUTANT_LOG_ITEM.get());
+        event.register((stack, tint) -> tint == 1
+                ? (com.evolutionmod.items.EvolutionPotionItem.color(stack) | 0xFF000000) : -1,
+            com.evolutionmod.items.ModItems.EVOLUTION_POTION.get());
     }
 
     /** Ajoute la couche de rendu génétique (teinte, lueur) à tous les mobs. */

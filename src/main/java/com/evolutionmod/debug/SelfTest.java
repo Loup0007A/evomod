@@ -235,6 +235,60 @@ public final class SelfTest {
         check(reloaded.species().size() == data.species().size(), "sauvegarde du monde rechargée ("
             + reloaded.species().size() + " espèces)");
 
+        // 9. Adaptation globale (biome, chasse...)
+        GeneType adapted = com.evolutionmod.core.Adaptation.trigger(level, base, "minecraft:zombie",
+            com.evolutionmod.core.Adaptation.Cause.HUNTED, zombie);
+        check(adapted != null, "adaptation du zombie : " + adapted);
+        GeneType oakGene = com.evolutionmod.core.Adaptation.trigger(level, base, "plant:oak",
+            com.evolutionmod.core.Adaptation.Cause.PLANT_BROKEN, null);
+        check(oakGene != null, "adaptation du chêne : " + oakGene);
+
+        // 10. Arbres visibles
+        BlockPos treePos = base.offset(-6, 0, -6);
+        level.setBlock(treePos, net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState(), 3);
+        for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+            level.setBlock(treePos.offset(dx, 1, dz), net.minecraft.world.level.block.Blocks.OAK_LEAVES.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true), 3);
+        }
+        int mutated = com.evolutionmod.core.TreeMutator.mutateNear(level, treePos, "oak",
+            data.get("plant:oak").template(), 3, 1.0);
+        check(mutated > 0, "feuillages de chêne mutés : " + mutated);
+
+        // 11. Chaudron : mixture puis explosion
+        BlockPos cauldron = base.offset(6, 0, -6);
+        level.setBlock(cauldron.below(), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(cauldron, net.minecraft.world.level.block.Blocks.WATER_CAULDRON.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.LayeredCauldronBlock.LEVEL, 3), 3);
+        var r1 = com.evolutionmod.brew.CauldronBrewing.addIngredient(level, cauldron, "minecraft:carrot", null);
+        com.evolutionmod.brew.CauldronBrewing.addIngredient(level, cauldron, "minecraft:cod", null);
+        com.evolutionmod.brew.CauldronBrewing.addIngredient(level, cauldron, "minecraft:beef", null);
+        var brew = com.evolutionmod.brew.BrewSavedData.get(level).get(cauldron);
+        check(r1 == com.evolutionmod.brew.CauldronBrewing.AddResult.ADDED && brew != null && brew.items.size() == 3,
+            "3 ingrédients dans le chaudron");
+        if (brew != null) {
+            long wait = brew.readyAt - level.getGameTime();
+            check(wait >= 300 && wait <= 2400, "temps de cuisson entre 15 s et 2 min : " + wait / 20 + " s");
+            var outcome = com.evolutionmod.brew.BrewRecipe.compute(brew.items, brew.seed);
+            check(!outcome.deltas().isEmpty(), "la mixture a des effets génétiques : " + outcome.deltas());
+            ItemStack potion = com.evolutionmod.items.EvolutionPotionItem.create(brew.items, brew.seed);
+            check(potion.is(ModItems.EVOLUTION_POTION.get()), "potion créée");
+            var cow = mobs.get(1);
+            var summary = com.evolutionmod.items.EvolutionPotionItem.apply(cow, outcome);
+            EvolutionMod.LOGGER.info("[SELFTEST]   potion sur une vache : {} (toxicité {})", summary,
+                String.format("%.1f", outcome.toxicity()));
+        }
+        var last = com.evolutionmod.brew.CauldronBrewing.AddResult.ADDED;
+        for (int i = 0; i < 6 && last == com.evolutionmod.brew.CauldronBrewing.AddResult.ADDED; i++) {
+            last = com.evolutionmod.brew.CauldronBrewing.addIngredient(level, cauldron, "minecraft:apple", null);
+        }
+        check(last == com.evolutionmod.brew.CauldronBrewing.AddResult.EXPLODED, "le chaudron surchargé explose");
+        var after = level.getBlockState(cauldron);
+        check(after.is(net.minecraft.world.level.block.Blocks.LAVA) || after.is(ModBlocks.SULFUR.get()),
+            "lave ou soufre à la place du chaudron : " + after);
+
+        // 12. Catalyseur
+        check(com.evolutionmod.items.EvolutionCatalystItem.mutate(mobs.get(4)), "catalyseur sur l'araignée");
+
         // 8. Journal
         check(!EvolutionManager.speciesComponent("minecraft:zombie").getString().isEmpty(), "nom d'espèce");
         server.saveEverything(true, true, true);

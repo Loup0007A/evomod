@@ -180,6 +180,13 @@ public final class EvolutionManager {
         data.recordPressure(pressure);
         data.setDirty();
 
+        // 3. Les arbres déjà présents autour des joueurs expriment leur évolution
+        if (EvoConfig.plantEvolution()) {
+            for (ServerLevel level : server.getAllLevels()) {
+                if (!level.players().isEmpty()) TreeMutator.dailySpread(level);
+            }
+        }
+
         long newMutations = data.totalMutations() - mutationsBefore;
         EvolutionMod.LOGGER.info("Cycle d'évolution #{} (jour {}) : {} mutations, pression {}",
             data.cycles(), day, newMutations, String.format("%.2f", pressure));
@@ -360,9 +367,15 @@ public final class EvolutionManager {
         tag.put("History", history);
 
         tag.putBoolean("PlayerEvolution", EvoConfig.playerEvolution());
+        tag.putBoolean("CanForce", canForce(player));
         Genome mine = EvolutionCapability.genome(player);
         if (mine != null) tag.put("Player", mine.save());
         return tag;
+    }
+
+    /** Forcer l'évolution : opérateur, ou propriétaire d'un monde solo. */
+    public static boolean canForce(ServerPlayer player) {
+        return player.hasPermissions(2) || player.getServer().isSingleplayerOwner(player.getGameProfile());
     }
 
     /** Résumé de l'espèce d'un génome pour l'écran de scan. */

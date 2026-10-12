@@ -29,6 +29,11 @@ public final class ModBlocks {
     public static final RegistryObject<Block> GENETIC_LAB = BLOCKS.register("genetic_lab",
         () -> new GeneticLabBlock(GeneticLabBlock.createProperties()));
 
+    public static final RegistryObject<Block> SULFUR = BLOCKS.register("sulfur",
+        () -> new SulfurBlock(SulfurBlock.createProperties()));
+    public static final RegistryObject<Item> SULFUR_ITEM = BLOCK_ITEMS.register("sulfur",
+        () -> new BlockItem(SULFUR.get(), new Item.Properties()));
+
     public static final RegistryObject<Item> BIOLUMINESCENT_LEAVES_ITEM = BLOCK_ITEMS.register("bioluminescent_leaves",
         () -> new BlockItem(BIOLUMINESCENT_LEAVES.get(), new Item.Properties()));
     public static final RegistryObject<Item> MUTANT_LOG_ITEM = BLOCK_ITEMS.register("mutant_log",

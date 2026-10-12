@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "evolutionmod:mutagen" },
+    { "item": "minecraft:emerald" },
+    { "item": "minecraft:glowstone_dust" },
+    { "item": "minecraft:amethyst_shard" }
+  ],
+  "result": { "id": "evolutionmod:evolution_catalyst", "count": 1 }
+}

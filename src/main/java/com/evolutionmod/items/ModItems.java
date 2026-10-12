@@ -32,6 +32,10 @@ public final class ModItems {
         GeneticCrystalItem::new);
     public static final RegistryObject<Item> MUTAGEN = ITEMS.register("mutagen",
         () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)));
+    public static final RegistryObject<Item> EVOLUTION_CATALYST = ITEMS.register("evolution_catalyst",
+        EvolutionCatalystItem::new);
+    public static final RegistryObject<Item> EVOLUTION_POTION = ITEMS.register("evolution_potion",
+        EvolutionPotionItem::new);
     public static final RegistryObject<Item> MUTANT_MEAT = ITEMS.register("mutant_meat",
         MutantMeatItem::new);
     public static final RegistryObject<Item> MUTANT_FRUIT = ITEMS.register("mutant_fruit",
@@ -45,6 +49,10 @@ public final class ModItems {
             output.accept(EVOLUTION_SCANNER.get());
             output.accept(GENETIC_CRYSTAL.get());
             output.accept(MUTAGEN.get());
+            output.accept(EVOLUTION_CATALYST.get());
+            output.accept(EvolutionPotionItem.create(java.util.List.of("minecraft:carrot", "minecraft:cod",
+                "minecraft:golden_apple"), 42L));
+            output.accept(ModBlocks.SULFUR_ITEM.get());
             output.accept(ModBlocks.GENETIC_LAB_ITEM.get());
             output.accept(ModBlocks.MUTANT_LOG_ITEM.get());
             output.accept(ModBlocks.BIOLUMINESCENT_LEAVES_ITEM.get());

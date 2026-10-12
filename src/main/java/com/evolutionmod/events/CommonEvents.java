@@ -176,6 +176,10 @@ public final class CommonEvents {
         boolean byPlayer = event.getSource().getEntity() instanceof Player;
         EvolutionManager.recordDeath(entity, byPlayer);
         if (byPlayer) EvolutionManager.selectAgainst(entity, 0.012);
+        if (byPlayer && entity.level() instanceof ServerLevel sl) {
+            com.evolutionmod.core.Adaptation.roll(sl, entity.blockPosition(), g.species(),
+                com.evolutionmod.core.Adaptation.Cause.HUNTED, entity);
+        }
 
         // Victoire d'un mob sur un joueur : très forte sélection positive
         // (géré dans PlayerDeath ci-dessous).

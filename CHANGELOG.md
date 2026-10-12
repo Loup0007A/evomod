@@ -1,3 +1,11 @@
+## Evolution Mod 2.1.0
+
+- **Mixtures génétiques** : plantes, viandes et poissons dans un chaudron d'eau (clic droit). Cuisson de 15 s à 2 min, puis fiole vide → *Mixture génétique*. Elle fait muter le joueur… en bien ou en mal : poison, wither, voire la mort. Trop d'ingrédients (seuil secret 5 à 7) : le chaudron explose, laissant lave et **soufre**.
+- **Adaptations globales** : casser une plante (1 %) ou tuer un mob (1,5 %) peut faire s'adapter toute l'espèce, selon le contexte (biome, chaleur, froid, obscurité, eau, altitude, forêt, chasse...).
+- **Arbres visibles** : les arbres autour des joueurs prennent la couleur et la lumière génétiques de leur espèce, et leurs troncs deviennent du bois mutant.
+- **Forcer l'évolution** : bouton ⚡ dans le journal (opérateurs) et *Catalyseur évolutif* (mob, soi-même, ou cycle mondial).
+- Le soufre sert aussi d'énergie au laboratoire.
+
 ## Evolution Mod 2.0.0 — refonte complète
 
 **Nouveautés**

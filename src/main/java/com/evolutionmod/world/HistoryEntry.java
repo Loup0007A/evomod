@@ -19,7 +19,9 @@ public record HistoryEntry(long day, Type type, String species, String detail, d
         NEW_SPECIES(0xFF6FD3FF),
         RECORD(0xFFC58BFF),
         LAB(0xFF7BE07B),
-        PLAYER(0xFFFFE066);
+        PLAYER(0xFFFFE066),
+        ADAPTATION(0xFF9BE05B),
+        FORCED(0xFFFF8A5B);
 
         public final int color;
 

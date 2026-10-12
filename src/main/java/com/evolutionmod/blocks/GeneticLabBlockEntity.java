@@ -102,7 +102,7 @@ public class GeneticLabBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     public static boolean isEnergy(ItemStack stack) {
-        return stack.is(Items.REDSTONE) || stack.is(Items.GLOWSTONE_DUST);
+        return stack.is(Items.REDSTONE) || stack.is(Items.GLOWSTONE_DUST) || stack.is(ModBlocks.SULFUR_ITEM.get());
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, GeneticLabBlockEntity lab) {

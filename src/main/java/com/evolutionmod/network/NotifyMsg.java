@@ -15,7 +15,8 @@ import java.util.List;
 public record NotifyMsg(Kind kind, String key, List<String> args) {
 
     public enum Kind {
-        DAILY(0xFF6FD3FF), SPECIATION(0xFFFFB347), PLAYER(0xFFFFE066), LAB(0xFF7BE07B), INFO(0xFFC58BFF);
+        DAILY(0xFF6FD3FF), SPECIATION(0xFFFFB347), PLAYER(0xFFFFE066), LAB(0xFF7BE07B), INFO(0xFFC58BFF),
+        ADAPTATION(0xFF9BE05B), BREW(0xFFB98CFF), DANGER(0xFFFF5B5B);
 
         public final int color;
 

@@ -71,6 +71,7 @@ public class JournalScreen extends Screen {
     private final List<HistoryEntry> history = new ArrayList<>();
     private Genome playerGenome;
     private boolean playerEvolution;
+    private boolean canForce;
 
     // État
     private Tab tab = Tab.WORLD;
@@ -115,6 +116,7 @@ public class JournalScreen extends Screen {
         for (int i = 0; i < h.size(); i++) history.add(HistoryEntry.load(h.getCompound(i)));
 
         playerEvolution = tag.getBoolean("PlayerEvolution");
+        canForce = tag.getBoolean("CanForce");
         CompoundTag p = tag.getCompound("Player");
         playerGenome = Genome.isValid(p) ? Genome.load(p) : null;
 
@@ -157,7 +159,19 @@ public class JournalScreen extends Screen {
             .withStyle(ChatFormatting.BOLD)), wx + 8, wy + 8, GuiDraw.TEXT, true);
         Component dayText = Component.translatable("evolutionmod.journal.header_day", day, cycles);
         int refreshX = wx + ww - 20;
-        g.drawString(font, dayText, refreshX - 6 - font.width(dayText), wy + 8, GuiDraw.TEXT_DIM, false);
+        int forceX = refreshX - 18;
+        int textRight = canForce ? forceX - 6 : refreshX - 6;
+        g.drawString(font, dayText, textRight - font.width(dayText), wy + 8, GuiDraw.TEXT_DIM, false);
+        if (canForce) {
+            boolean hoverForce = GuiDraw.inside(mouseX, mouseY, forceX, wy + 5, 14, 14);
+            g.fill(forceX, wy + 5, forceX + 14, wy + 19, hoverForce ? 0xFF3A2A18 : 0xFF101B23);
+            g.renderOutline(forceX, wy + 5, 14, 14, hoverForce ? GuiDraw.WARN : GuiDraw.BORDER);
+            g.drawCenteredString(font, "⚡", forceX + 7, wy + 8, refreshCooldown > 0 ? GuiDraw.TEXT_FAINT : GuiDraw.WARN);
+            if (hoverForce) {
+                tooltip.add(Component.translatable("evolutionmod.journal.force").withStyle(ChatFormatting.GOLD));
+                tooltip.add(Component.translatable("evolutionmod.journal.force.desc").withStyle(ChatFormatting.GRAY));
+            }
+        }
         boolean hoverRefresh = GuiDraw.inside(mouseX, mouseY, refreshX, wy + 5, 14, 14);
         g.fill(refreshX, wy + 5, refreshX + 14, wy + 19, hoverRefresh ? 0xFF1E3442 : 0xFF101B23);
         g.renderOutline(refreshX, wy + 5, 14, 14, hoverRefresh ? GuiDraw.BORDER_LIGHT : GuiDraw.BORDER);
@@ -568,6 +582,13 @@ public class JournalScreen extends Screen {
             if (GuiDraw.inside(mx, my, wx + ww - 20, wy + 5, 14, 14) && refreshCooldown == 0) {
                 EvoNetwork.sendToServer(new RequestJournalMsg());
                 refreshCooldown = 20;
+                click();
+                return true;
+            }
+            // Forcer un cycle (opérateurs)
+            if (canForce && GuiDraw.inside(mx, my, wx + ww - 38, wy + 5, 14, 14) && refreshCooldown == 0) {
+                EvoNetwork.sendToServer(new com.evolutionmod.network.ForceCycleMsg(hasShiftDown() ? 5 : 1));
+                refreshCooldown = 30;
                 click();
                 return true;
             }

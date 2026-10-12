@@ -23,6 +23,13 @@ Le mod doit être installé sur le serveur **et** sur les clients.
 | **Cristal génomique** | 4 améthystes + verre (×2) | Séquence le génome d'une créature ; Maj + clic droit pour l'injecter dans une autre de la même espèce |
 | **Mutagène** | œil d'araignée fermenté, poudre lumineuse, améthyste, fiole | Réactif de mutagenèse au laboratoire |
 | **Laboratoire génétique** | fer, verre, cuivre, alambic | Fusion, clonage et mutagenèse de cristaux |
+| **Catalyseur évolutif** | mutagène, émeraude, poudre lumineuse, améthyste | Force une évolution : sur un mob, sur soi, ou (Maj) un cycle mondial |
+
+### Mixtures au chaudron
+Clic droit sur un chaudron rempli d'eau avec des plantes, de la viande ou du poisson. La mixture cuit entre 15 s et 2 min (clic droit main vide pour voir l'état). Une fiole vide récupère une **Mixture génétique** : la boire fait muter votre génome selon les ingrédients… et le hasard. Ingrédients douteux (chair putréfiée, poisson-globe, œil d'araignée, rose de wither) = poison, wither, parfois la mort. Au-delà de 5 à 7 ingrédients (seuil secret), le chaudron **explose** et laisse de la lave et du soufre.
+
+### Adaptations
+Casser une plante (1 %) ou tuer un mob (1,5 %) peut déclencher une adaptation de toute l'espèce. Le gène favorisé dépend du contexte : chaleur, froid, Nether, obscurité, eau, altitude, forêt, surpopulation, pression de chasse...
 
 ### Le Journal d'évolution
 - **Monde** : jour, cycles, mutations, spéciations, pression environnementale (graphique) et classement des espèces les plus divergentes.

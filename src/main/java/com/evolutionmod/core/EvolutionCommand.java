@@ -11,6 +11,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.evolutionmod.genetics.GeneType;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -141,6 +142,15 @@ public final class EvolutionCommand {
             case SPECIATION -> Component.translatable("evolutionmod.history.speciation", species,
                 Component.literal(e.detail()).withStyle(ChatFormatting.LIGHT_PURPLE));
             case NEW_SPECIES -> Component.translatable("evolutionmod.history.new_species", species);
+            case ADAPTATION -> {
+                String[] parts = e.detail().split("\\|");
+                GeneType gene = GeneType.byName(parts[0]);
+                Component geneName = gene == null ? Component.literal(parts[0]) : Component.translatable(gene.translationKey());
+                Component reason = Component.translatable("evolutionmod.reason." + (parts.length > 1 ? parts[1] : "random"));
+                yield Component.translatable(e.value() >= 0 ? "evolutionmod.history.adaptation_up"
+                    : "evolutionmod.history.adaptation_down", species, geneName, reason);
+            }
+            case FORCED -> Component.translatable("evolutionmod.history.forced", e.detail());
             default -> Component.translatable("evolutionmod.history.generic", species, e.detail());
         };
     }

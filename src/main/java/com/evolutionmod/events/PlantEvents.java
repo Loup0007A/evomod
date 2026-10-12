@@ -55,15 +55,7 @@ public final class PlantEvents {
 
     /** Espèce d'arbre d'un bloc (pousse, bûche, bois, feuilles) ou null. */
     static String treeSpecies(Block block) {
-        String p = path(block);
-        if (p.startsWith("stripped_")) p = p.substring(9);
-        for (String s : SpeciesProfile.TREE_SPECIES) {
-            if (p.equals(s + "_sapling") || p.equals(s + "_log") || p.equals(s + "_wood")
-                || p.equals(s + "_leaves") || (s.equals("mangrove") && p.equals("mangrove_propagule"))) {
-                return s;
-            }
-        }
-        return null;
+        return com.evolutionmod.core.TreeMutator.treeSpecies(block);
     }
 
     static String cropSpecies(Block block) {
@@ -136,6 +128,10 @@ public final class PlantEvents {
 
         String crop = cropSpecies(block);
         if (crop != null) {
+            if (EvoConfig.plantEvolution()) {
+                com.evolutionmod.core.Adaptation.roll(level, pos, SpeciesProfile.plantId(crop),
+                    com.evolutionmod.core.Adaptation.Cause.PLANT_BROKEN, null);
+            }
             if (block instanceof CropBlock cb && !cb.isMaxAge(state)) return;
             if (path(block).endsWith("_stem")) return;
             Genome g = plantGenome(level, crop);
@@ -162,6 +158,8 @@ public final class PlantEvents {
         if (tree == null) return;
         Genome g = plantGenome(level, tree);
         if (g == null) return;
+        com.evolutionmod.core.Adaptation.roll(level, pos, SpeciesProfile.plantId(tree),
+            com.evolutionmod.core.Adaptation.Cause.PLANT_BROKEN, null);
 
         if (block instanceof LeavesBlock) {
             double potency = g.get(GeneType.POTENCY);
@@ -204,36 +202,11 @@ public final class PlantEvents {
             if (t.level().getGameTime() < t.runAt()) break;
             PENDING.poll();
             Genome g = plantGenome(t.level(), t.species());
-            if (g != null) decorateTree(t.level(), t.pos(), g);
-        }
-    }
-
-    private static void decorateTree(ServerLevel level, BlockPos origin, Genome g) {
-        double glow = g.get(GeneType.GLOW);
-        double density = g.get(GeneType.DENSITY);
-        double pigment = g.get(GeneType.PIGMENT);
-        if (glow < 0.35 && density < 0.6 && pigment < 0.4) return;
-
-        int hue = BioluminescentLeavesBlock.hueToSegment(g.get(GeneType.HUE));
-        int light = (int) Math.round(Math.max(0, glow) * 15);
-        double leafChance = Math.max(glow, pigment) * 0.6;
-
-        for (BlockPos p : BlockPos.betweenClosed(origin.offset(-5, 0, -5), origin.offset(5, 14, 5))) {
-            BlockState s = level.getBlockState(p);
-            if (s.getBlock() instanceof LeavesBlock && !(s.getBlock() instanceof BioluminescentLeavesBlock)
-                && level.random.nextDouble() < leafChance) {
-                BlockState leaves = ModBlocks.BIOLUMINESCENT_LEAVES.get().defaultBlockState()
-                    .setValue(BioluminescentLeavesBlock.GENETIC_LIGHT, light)
-                    .setValue(BioluminescentLeavesBlock.GENETIC_HUE, hue)
-                    .setValue(LeavesBlock.DISTANCE, s.getValue(LeavesBlock.DISTANCE))
-                    .setValue(LeavesBlock.PERSISTENT, s.getValue(LeavesBlock.PERSISTENT));
-                level.setBlock(p, leaves, Block.UPDATE_ALL);
-            } else if (density > 0.6 && s.getBlock() instanceof RotatedPillarBlock
-                && treeSpecies(s.getBlock()) != null && level.random.nextDouble() < (density - 0.5)) {
-                BlockState log = ModBlocks.MUTANT_LOG.get().defaultBlockState()
-                    .setValue(RotatedPillarBlock.AXIS, s.getValue(RotatedPillarBlock.AXIS))
-                    .setValue(MutantLogBlock.GENETIC_HUE, hue);
-                level.setBlock(p, log, Block.UPDATE_ALL);
+            if (g != null) {
+                SpeciesRecord r = EvolutionSavedData.get(server).get(SpeciesProfile.plantId(t.species()));
+                double div = r == null ? 0 : r.divergence();
+                com.evolutionmod.core.TreeMutator.mutateNear(t.level(), t.pos().above(4), t.species(), g, 6,
+                    Math.min(1.0, 0.25 + div * 4));
             }
         }
     }

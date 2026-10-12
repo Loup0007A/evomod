@@ -18,7 +18,7 @@ public final class EvoNetwork {
 
     private EvoNetwork() {}
 
-    private static final int PROTOCOL = 2;
+    private static final int PROTOCOL = 3;
 
     public static final SimpleChannel CHANNEL = ChannelBuilder
         .named(EvolutionMod.id("main"))
@@ -38,6 +38,9 @@ public final class EvoNetwork {
         CHANNEL.messageBuilder(NotifyMsg.class, NetworkDirection.PLAY_TO_CLIENT)
             .encoder(NotifyMsg::encode).decoder(NotifyMsg::decode)
             .consumerMainThread(NotifyMsg::handle).add();
+        CHANNEL.messageBuilder(ForceCycleMsg.class, NetworkDirection.PLAY_TO_SERVER)
+            .encoder(ForceCycleMsg::encode).decoder(ForceCycleMsg::decode)
+            .consumerMainThread(ForceCycleMsg::handle).add();
         CHANNEL.messageBuilder(RequestJournalMsg.class, NetworkDirection.PLAY_TO_SERVER)
             .encoder(RequestJournalMsg::encode).decoder(RequestJournalMsg::decode)
             .consumerMainThread(RequestJournalMsg::handle).add();

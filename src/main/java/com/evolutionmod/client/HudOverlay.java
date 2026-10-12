@@ -53,6 +53,12 @@ public final class HudOverlay {
 
     private static Object resolveArg(String a) {
         if (a.startsWith("#species:")) return EvolutionManager.speciesComponent(a.substring(9));
+        if (a.startsWith("#reason:")) return Component.translatable("evolutionmod.reason." + a.substring(8));
+        if (a.startsWith("#item:")) {
+            var item = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(
+                net.minecraft.resources.ResourceLocation.parse(a.substring(6)));
+            return item == null ? a : item.getDescription();
+        }
         if (a.startsWith("#gene:")) {
             GeneType t = GeneType.byName(a.substring(6));
             return t == null ? a : Component.translatable(t.translationKey());

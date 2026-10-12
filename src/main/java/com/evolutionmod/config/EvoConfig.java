@@ -20,6 +20,9 @@ public final class EvoConfig {
     private static final ForgeConfigSpec.BooleanValue DAILY_REPORT;
     private static final ForgeConfigSpec.BooleanValue GENETIC_DROPS;
     private static final ForgeConfigSpec.BooleanValue PLANT_EVOLUTION;
+    private static final ForgeConfigSpec.DoubleValue PLANT_ADAPTATION;
+    private static final ForgeConfigSpec.DoubleValue MOB_ADAPTATION;
+    private static final ForgeConfigSpec.BooleanValue CAULDRON_BREWING;
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> BLACKLIST;
 
     static {
@@ -34,6 +37,10 @@ public final class EvoConfig {
             .defineInRange("maxCatchUpCycles", 3, 1, 30);
         PLANT_EVOLUTION = b.comment("Les arbres et cultures évoluent-ils ?")
             .define("plantEvolution", true);
+        PLANT_ADAPTATION = b.comment("Chance qu'une plante cassée déclenche une adaptation de toute son espèce (0.01 = 1 %)")
+            .defineInRange("plantAdaptationChance", 0.01, 0.0, 1.0);
+        MOB_ADAPTATION = b.comment("Chance qu'un mob tué par un joueur déclenche une adaptation de toute son espèce (0.015 = 1,5 %)")
+            .defineInRange("mobAdaptationChance", 0.015, 0.0, 1.0);
         BLACKLIST = b.comment("Entités exclues de l'évolution (ex: \"minecraft:bee\")")
             .defineListAllowEmpty("blacklist", List.of(), o -> o instanceof String);
         b.pop();
@@ -41,6 +48,8 @@ public final class EvoConfig {
         b.comment("Évolution du joueur").push("player");
         PLAYER_EVOLUTION = b.comment("Le joueur évolue-t-il lui aussi ?")
             .define("playerEvolution", true);
+        CAULDRON_BREWING = b.comment("Mixtures génétiques au chaudron (plantes, viande, poisson dans un chaudron d'eau)")
+            .define("cauldronBrewing", true);
         PLAYER_EXPRESSION = b.comment("Intensité d'expression des gènes du joueur (0..1). Faible = changements subtils.")
             .defineInRange("playerExpression", 0.35, 0.0, 1.0);
         b.pop();
@@ -76,6 +85,9 @@ public final class EvoConfig {
     public static boolean dailyReport() { return safe(DAILY_REPORT, true); }
     public static boolean geneticDrops() { return safe(GENETIC_DROPS, true); }
     public static boolean plantEvolution() { return safe(PLANT_EVOLUTION, true); }
+    public static double plantAdaptationChance() { return safe(PLANT_ADAPTATION, 0.01); }
+    public static double mobAdaptationChance() { return safe(MOB_ADAPTATION, 0.015); }
+    public static boolean cauldronBrewing() { return safe(CAULDRON_BREWING, true); }
 
     public static boolean isBlacklisted(String id) {
         List<? extends String> list = safe(BLACKLIST, List.of());

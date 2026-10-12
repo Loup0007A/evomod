@@ -67,7 +67,7 @@ public class EvolutionCapability implements ICapabilitySerializable<CompoundTag>
     /** Génome de l'entité ou {@code null} s'il n'en a pas (encore). */
     @Nullable
     public static Genome genome(Entity entity) {
-        return get(entity).map(EvolutionData::genome).orElse(null);
+        return get(entity).resolve().map(EvolutionData::genome).orElse(null);
     }
 
     @NotNull

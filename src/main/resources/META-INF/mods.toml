@@ -1,15 +1,19 @@
 modLoader="javafml"
 loaderVersion="[52,)"
 license="MIT"
+issueTrackerURL="https://github.com/Loup0007A/evomod/issues"
 
 [[mods]]
 modId="evolutionmod"
-version="1.0.0"
+version="2.0.0"
 displayName="Evolution Mod"
+authors="Loup0007A"
+displayURL="https://github.com/Loup0007A/evomod"
 description='''
-Soumet Minecraft aux lois de l'évolution darwinienne.
-Les mobs et plantes accumulent des mutations génétiques au fil des jours,
-faisant évoluer leurs apparences, capacités et comportements.
+La vie évolue. Chaque aube, les créatures, les plantes et même le joueur mutent ;
+la sélection naturelle (vos chasses, vos élevages) façonne les espèces, qui
+divergent en nouvelles lignées. Journal d'évolution (touche J), scanner génétique,
+laboratoire de fusion/clonage/mutagenèse.
 '''
 
 [[dependencies.evolutionmod]]

@@ -2,12 +2,17 @@ name: Build Evolution Mod
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ '**' ]
+    paths-ignore: [ 'releases/**' ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.ref_name != 'ci-logs' && github.ref_name != 'mc-src'
 
     steps:
       - name: Checkout code
@@ -28,13 +33,28 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Fix gradlew permissions
-        run: chmod +x gradlew
-
       - name: Build mod
-        run: ./gradlew build --no-daemon
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew build --no-daemon 2>&1 | tee build.log
         env:
           GRADLE_OPTS: "-Xmx4g"
+
+      - name: Publish build log to the ci-logs branch
+        if: always()
+        run: |
+          NAME=$(echo "${GITHUB_REF_NAME}" | tr '/' '_')
+          mkdir -p /tmp/logs
+          cp build.log "/tmp/logs/${NAME}.log" 2>/dev/null || echo "no log" > "/tmp/logs/${NAME}.log"
+          echo "${{ job.status }} ${GITHUB_SHA}" > "/tmp/logs/${NAME}.status"
+          ls -l build/libs >> "/tmp/logs/${NAME}.status" 2>/dev/null || true
+          cd /tmp/logs
+          git init -q -b ci-logs
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          git add -A && git commit -qm "build log ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-logs
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -43,5 +63,29 @@ jobs:
           path: build/libs/evolutionmod-*.jar
           if-no-files-found: error
 
-      - name: Show JAR
-        run: ls -lh build/libs/
+      - name: Publish release and commit the jar (main only)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep '^mod_version' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          JAR="build/libs/evolutionmod-${VERSION}.jar"
+          ls -l "$JAR"
+          # 1) Release GitHub (créée ou mise à jour)
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            gh release upload "v${VERSION}" "$JAR" --clobber
+          else
+            gh release create "v${VERSION}" "$JAR" --title "Evolution Mod ${VERSION}" \
+              --notes-file CHANGELOG.md --target "${GITHUB_SHA}"
+          fi
+          # 2) Copie du jar dans le dépôt (dossier releases/)
+          mkdir -p releases
+          cp "$JAR" releases/
+          cp "$JAR" releases/evolutionmod-latest.jar
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          git add releases/
+          if ! git diff --cached --quiet; then
+            git commit -qm "Jar compilé ${VERSION} (${GITHUB_SHA::7})"
+            git push -q origin HEAD:main
+          fi

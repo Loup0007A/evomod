@@ -5,140 +5,121 @@ import com.evolutionmod.genetics.Genome;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.common.capabilities.*;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.common.capabilities.AutoRegisterCapability;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.CapabilityManager;
+import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.ICapabilitySerializable;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.common.util.INBTSerializable;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Capability Forge qui attache un génome évolutif à chaque entité vivante.
- * C'est le cœur du système - sans ça, pas d'évolution.
+ * Données génétiques attachées à chaque entité vivante.
  *
- * NOTE 1.21.1 (vérifié directement dans le code source Forge, branche 1.21.1) :
- * INBTSerializable<T> n'a QUE la signature à deux paramètres :
- *   T serializeNBT(HolderLookup.Provider)
- *   void deserializeNBT(HolderLookup.Provider, T)
- * Il n'existe PAS de version historique à un seul paramètre à overrider
- * en plus — mon hypothèse précédente (contourner via le bug Forge #9998)
- * était incorrecte pour cette release précise. HolderLookup.Provider n'est
- * pas utilisé dans le corps des méthodes ici (pas de Codecs/registres
- * dynamiques dans notre NBT), mais doit apparaître dans la signature pour
- * matcher l'interface.
+ * Le génome est créé paresseusement côté serveur (à l'arrivée de l'entité dans
+ * le monde) et uniquement pour les espèces qui évoluent. Côté client, il est
+ * rempli par synchronisation réseau.
  */
 @Mod.EventBusSubscriber(modid = EvolutionMod.MOD_ID)
-public class EvolutionCapability implements ICapabilityProvider,
-        INBTSerializable<CompoundTag> {
+public class EvolutionCapability implements ICapabilitySerializable<CompoundTag> {
 
-    public static final Capability<IEvolutionData> EVOLUTION_CAP = CapabilityManager.get(
-        new CapabilityToken<>() {}
-    );
+    public static final Capability<EvolutionData> CAP = CapabilityManager.get(new CapabilityToken<>() {});
+    private static final ResourceLocation ID = EvolutionMod.id("genetics");
 
-    private static final ResourceLocation CAP_ID =
-        ResourceLocation.fromNamespaceAndPath(EvolutionMod.MOD_ID, "evolution_data");
-
-    private final IEvolutionData data;
-    private final LazyOptional<IEvolutionData> optional;
-
-    public EvolutionCapability(LivingEntity entity) {
-        String entityType = entity.getType().getDescriptionId()
-            .replace("entity.minecraft.", "")
-            .replace("entity." + EvolutionMod.MOD_ID + ".", "");
-        this.data = new EvolutionData(Genome.createForSpecies(entityType));
-        this.optional = LazyOptional.of(() -> this.data);
-    }
-
-    public static void register() {
-        RegisterCapabilitiesEvent.class.getName(); // Force-load
-    }
+    private final EvolutionData data = new EvolutionData();
+    private final LazyOptional<EvolutionData> optional = LazyOptional.of(() -> data);
 
     @SubscribeEvent
-    public static void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
-        event.register(IEvolutionData.class);
-    }
-
-    @SubscribeEvent
-    public static void onAttachCapabilities(AttachCapabilitiesEvent<net.minecraft.world.entity.Entity> event) {
-        if (event.getObject() instanceof LivingEntity livingEntity) {
-            EvolutionCapability cap = new EvolutionCapability(livingEntity);
-            event.addCapability(CAP_ID, cap);
+    public static void onAttach(AttachCapabilitiesEvent<Entity> event) {
+        if (event.getObject() instanceof LivingEntity) {
+            EvolutionCapability provider = new EvolutionCapability();
+            event.addCapability(ID, provider);
+            event.addListener(provider.optional::invalidate);
         }
+    }
+
+    /** Conserve le génome du joueur après la mort ou le retour de l'End. */
+    @SubscribeEvent
+    public static void onPlayerClone(PlayerEvent.Clone event) {
+        Player original = event.getOriginal();
+        original.reviveCaps();
+        get(original).ifPresent(old -> get(event.getEntity()).ifPresent(neu -> {
+            if (old.genome() != null) neu.setGenome(old.genome().copy());
+            neu.setLastCycle(old.lastCycle());
+            neu.setBornDay(old.bornDay());
+        }));
+        original.invalidateCaps();
+    }
+
+    public static LazyOptional<EvolutionData> get(Entity entity) {
+        return entity.getCapability(CAP);
+    }
+
+    /** Génome de l'entité ou {@code null} s'il n'en a pas (encore). */
+    @Nullable
+    public static Genome genome(Entity entity) {
+        return get(entity).map(EvolutionData::genome).orElse(null);
     }
 
     @NotNull
     @Override
     public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        return EVOLUTION_CAP.orEmpty(cap, optional);
+        return CAP.orEmpty(cap, optional);
     }
-
-    // ───── Sérialisation : signature réelle 1.21.1 (deux paramètres) ─────
 
     @Override
     public CompoundTag serializeNBT(HolderLookup.Provider registries) {
-        CompoundTag tag = new CompoundTag();
-        if (data.getGenome() != null) {
-            tag.put("Genome", data.getGenome().toNBT());
-        }
-        tag.putLong("LastEvolutionDay", data.getLastEvolutionDay());
-        tag.putInt("GenerationNumber", data.getGenerationNumber());
-        return tag;
+        return data.save();
     }
 
     @Override
     public void deserializeNBT(HolderLookup.Provider registries, CompoundTag nbt) {
-        if (nbt.contains("Genome")) {
-            data.setGenome(Genome.fromNBT(nbt.getCompound("Genome")));
-        }
-        data.setLastEvolutionDay(nbt.getLong("LastEvolutionDay"));
-        data.setGenerationNumber(nbt.getInt("GenerationNumber"));
+        data.load(nbt);
     }
 
-    /**
-     * Helper pour récupérer la capability d'une entité.
-     */
-    public static LazyOptional<IEvolutionData> getEvolutionData(LivingEntity entity) {
-        return entity.getCapability(EVOLUTION_CAP);
-    }
+    // ───────────────────────── Données ─────────────────────────
 
-    // =================== Interface ===================
-
-    public interface IEvolutionData {
-        Genome getGenome();
-        void setGenome(Genome genome);
-        long getLastEvolutionDay();
-        void setLastEvolutionDay(long day);
-        int getGenerationNumber();
-        void setGenerationNumber(int gen);
-        boolean hasEvolvedToday(long currentDay);
-    }
-
-    // =================== Implémentation ===================
-
-    public static class EvolutionData implements IEvolutionData {
+    @AutoRegisterCapability
+    public static class EvolutionData {
         private Genome genome;
-        private long lastEvolutionDay = -1;
-        private int generationNumber = 0;
+        private long lastCycle = -1;
+        private long bornDay = -1;
+        private boolean legacy;
 
-        public EvolutionData(Genome genome) {
-            this.genome = genome;
+        @Nullable
+        public Genome genome() { return genome; }
+        public void setGenome(@Nullable Genome genome) { this.genome = genome; }
+        public long lastCycle() { return lastCycle; }
+        public void setLastCycle(long day) { this.lastCycle = day; }
+        public long bornDay() { return bornDay; }
+        public void setBornDay(long day) { this.bornDay = day; }
+        /** Vrai si l'entité a été modifiée par l'ancienne version 1.0 du mod (attributs à réparer). */
+        public boolean isLegacy() { return legacy; }
+        public void clearLegacy() { this.legacy = false; }
+
+        public CompoundTag save() {
+            CompoundTag tag = new CompoundTag();
+            if (genome != null) tag.put("Genome", genome.save());
+            tag.putLong("LastCycle", lastCycle);
+            tag.putLong("Born", bornDay);
+            return tag;
         }
 
-        @Override public Genome getGenome() { return genome; }
-        @Override public void setGenome(Genome g) { this.genome = g; }
-        @Override public long getLastEvolutionDay() { return lastEvolutionDay; }
-        @Override public void setLastEvolutionDay(long day) { this.lastEvolutionDay = day; }
-        @Override public int getGenerationNumber() { return generationNumber; }
-        @Override public void setGenerationNumber(int gen) { this.generationNumber = gen; }
-
-        @Override
-        public boolean hasEvolvedToday(long currentDay) {
-            return lastEvolutionDay >= currentDay;
+        public void load(CompoundTag tag) {
+            CompoundTag g = tag.getCompound("Genome");
+            genome = Genome.isValid(g) ? Genome.load(g) : null; // les génomes v1.0 sont régénérés
+            lastCycle = tag.contains("LastCycle") ? tag.getLong("LastCycle") : -1;
+            bornDay = tag.contains("Born") ? tag.getLong("Born") : -1;
+            legacy = tag.contains("LastEvolutionDay");
         }
     }
 }

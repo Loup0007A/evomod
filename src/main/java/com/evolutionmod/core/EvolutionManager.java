@@ -1,357 +1,373 @@
 package com.evolutionmod.core;
 
 import com.evolutionmod.EvolutionMod;
-import com.evolutionmod.genetics.Gene;
-import com.evolutionmod.genetics.GeneticEvent;
+import com.evolutionmod.config.EvoConfig;
+import com.evolutionmod.genetics.GeneType;
 import com.evolutionmod.genetics.Genome;
+import com.evolutionmod.genetics.SpeciesProfile;
+import com.evolutionmod.network.EvoNetwork;
+import com.evolutionmod.network.NotifyMsg;
+import com.evolutionmod.network.SyncGenomeMsg;
+import com.evolutionmod.world.EvolutionSavedData;
+import com.evolutionmod.world.HistoryEntry;
+import com.evolutionmod.world.SpeciesRecord;
+import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
-import net.minecraftforge.server.ServerLifecycleHooks;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Le gestionnaire central de l'évolution.
- * Orchestre les cycles d'évolution quotidiens, gère les statistiques globales,
- * et coordonne les effets des mutations sur le monde.
+ * Cœur de la simulation évolutive (côté serveur uniquement).
  *
- * Chaque "jour Minecraft" = un cycle d'évolution.
- * Les entités évoluent, les arbres mutent, le monde change.
+ * <h2>Modèle</h2>
+ * <ul>
+ *   <li>Chaque espèce possède un <b>gabarit</b> (génome de population) qui dérive
+ *       un peu chaque jour et qui est tiré par la <b>sélection</b> : les individus
+ *       qui blessent un joueur, survivent longtemps ou se reproduisent attirent
+ *       le gabarit vers eux ; ceux que les joueurs tuent l'en éloignent.</li>
+ *   <li>Chaque nouvel individu naît du gabarit (avec une variation personnelle),
+ *       puis accumule ses propres mutations au fil des jours.</li>
+ *   <li>Quand le gabarit s'éloigne assez de l'ancêtre vanilla, une nouvelle
+ *       lignée (spéciation) est nommée et annoncée.</li>
+ * </ul>
  */
-public class EvolutionManager {
+public final class EvolutionManager {
 
-    private static EvolutionManager INSTANCE;
+    private EvolutionManager() {}
 
-    // Statistiques globales d'évolution
-    private long currentDay = 0;
-    private long totalMutationsWorldwide = 0;
-    private int speciationEvents = 0;
-    private final Map<String, Integer> speciesPopulation = new HashMap<>();
-    private final Map<String, List<GeneticEvent>> speciationHistory = new HashMap<>();
+    private static final RandomSource RANDOM = RandomSource.create();
 
-    // Pression environnementale actuelle (augmente avec le temps)
-    private double globalEnvironmentalPressure = 0.1;
+    // ───────────────────────── Temps ─────────────────────────
 
-    // Cache des génomes globaux pour partager les mutations entre individus de même espèce
-    // (utilisé pour les plantes : un seul génome de gabarit par espèce végétale)
-    private final Map<String, Genome> speciesTemplates = new HashMap<>();
-
-    // Pour les mobs (et le joueur), il n'existe pas de génome unique par espèce
-    // — chaque individu a le sien. On garde ici, par espèce, l'individu le PLUS
-    // MUTÉ observé jusqu'à présent : c'est l'information la plus pertinente à
-    // afficher dans le GUI (la "pointe" de l'évolution de cette espèce), plutôt
-    // qu'une moyenne qui lisserait les mutations intéressantes.
-    private final Map<String, Genome> mostEvolvedPerSpecies = new HashMap<>();
-
-    // =================== SINGLETON ===================
-
-    public static EvolutionManager getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new EvolutionManager();
-        }
-        return INSTANCE;
+    public static long currentDay(MinecraftServer server) {
+        return server.overworld().getDayTime() / 24000L;
     }
 
-    // =================== CYCLE JOURNALIER ===================
-
-    /**
-     * Appelé une fois par jour Minecraft (au changement de jour).
-     * C'est le point central de tout le système évolutif.
-     */
-    public void onDayChange(long newDay, ServerLevel level) {
-        this.currentDay = newDay;
-
-        // La pression environnementale augmente progressivement
-        // (le monde devient de plus en plus "hostile" aux formes de vie statiques)
-        globalEnvironmentalPressure = Math.min(1.0, 0.05 + (newDay / 1000.0) * 0.95);
-
-        EvolutionMod.LOGGER.info("=== CYCLE D'ÉVOLUTION - Jour {} === (pression: {:.2f})",
-            newDay, globalEnvironmentalPressure);
-
-        // Évoluer toutes les entités vivantes dans tous les mondes chargés
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        if (server != null) {
-            for (ServerLevel serverLevel : server.getAllLevels()) {
-                evolveLevel(serverLevel, newDay);
-            }
-        }
-
-        // Évoluer les arbres et plantes
-        evolvePlants(level, newDay);
-
-        logEvolutionStatus();
+    /** Pression environnementale : monte doucement de 0.15 vers 1.0 au fil des cycles. */
+    public static double pressure(long cycles) {
+        return 0.15 + 0.85 * (1.0 - Math.exp(-cycles / 90.0));
     }
 
+    public static double pressure(MinecraftServer server) {
+        return pressure(EvolutionSavedData.get(server).cycles());
+    }
+
+    // ───────────────────────── Naissance ─────────────────────────
+
     /**
-     * Évolue toutes les entités d'un niveau — mobs, plantes-support, ET joueurs.
-     *
-     * NOTE 1.21.1 : WorldBorder n'a pas de méthode createBoundingBox(int).
-     * ServerLevel#getAllEntities() retourne directement toutes les entités
-     * actuellement chargées dans ce niveau, sans avoir besoin de définir
-     * une zone de recherche — c'est l'API correcte ici.
-     *
-     * Les joueurs évoluent désormais comme toute autre créature, mais avec
-     * une pression environnementale très réduite (voir PLAYER_MUTATION_DAMPING)
-     * pour que les changements restent graduels sur plusieurs dizaines de
-     * jours plutôt que de transformer le joueur en quelques minutes — ce
-     * serait injouable et illisible en survie.
+     * Appelé quand une entité vivante arrive dans un monde serveur : création du
+     * génome si nécessaire, puis expression des gènes.
      */
-    private static final double PLAYER_MUTATION_DAMPING = 0.12;
+    public static void onEntityJoin(LivingEntity entity) {
+        MinecraftServer server = entity.getServer();
+        if (server == null) return;
 
-    private void evolveLevel(ServerLevel level, long day) {
-        List<LivingEntity> entities = new ArrayList<>();
-        for (Entity entity : level.getAllEntities()) {
-            if (entity instanceof LivingEntity living) {
-                entities.add(living);
+        EvolutionCapability.get(entity).ifPresent(data -> {
+            if (data.isLegacy()) {
+                Phenotype.repairLegacyAttributes(entity);
+                data.clearLegacy();
             }
-        }
 
-        for (LivingEntity entity : entities) {
-            boolean isPlayer = entity instanceof Player;
-
-            EvolutionCapability.getEvolutionData(entity).ifPresent(evoData -> {
-                if (!evoData.hasEvolvedToday(day)) {
-                    Genome genome = evoData.getGenome();
-                    if (genome != null) {
-                        double effectivePressure = isPlayer
-                            ? globalEnvironmentalPressure * PLAYER_MUTATION_DAMPING
-                            : globalEnvironmentalPressure;
-
-                        List<GeneticEvent> events = genome.applyDailyMutation(effectivePressure, day);
-
-                        applyGenomeMutations(entity, genome);
-
-                        evoData.setLastEvolutionDay(day);
-                        totalMutationsWorldwide += events.size();
-
-                        for (GeneticEvent event : events) {
-                            if (event.type == GeneticEvent.EventType.SPECIATION && !isPlayer) {
-                                speciationEvents++;
-                                announceSpeciation(entity, genome.getSpeciesLineage(), level);
-                            }
-                        }
-
-                        // Notifier le joueur de sa propre évolution (sinon c'est invisible
-                        // et incompréhensible — contrairement aux mobs qu'on peut scanner,
-                        // le joueur ne va pas se scanner lui-même au Cristal Génomique).
-                        if (isPlayer && !events.isEmpty() && entity instanceof net.minecraft.server.level.ServerPlayer sp) {
-                            GeneticEvent notable = events.get(0);
-                            sp.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                                "§d§l[ÉVOLUTION]§r §7Votre corps change légèrement... §8(" +
-                                notable.affectedGene.name() + ")"
-                            ));
-                        }
-
-                        // Maintenir le "record" d'évolution par espèce pour le GUI
-                        // (/evolution status) — voir mostEvolvedPerSpecies plus haut.
-                        updateMostEvolvedRecord(entity, genome);
-                    }
+            if (!SpeciesProfile.isEvolvable(entity)) {
+                if (data.genome() != null) {
+                    data.setGenome(null);
+                    Phenotype.clear(entity);
                 }
-            });
+                return;
+            }
+
+            boolean fresh = false;
+            if (data.genome() == null) {
+                EvolutionSavedData saved = EvolutionSavedData.get(server);
+                long day = currentDay(server);
+                SpeciesProfile profile = SpeciesProfile.forEntity(entity);
+                boolean newSpecies = saved.get(profile.id()) == null;
+                SpeciesRecord record = saved.getOrCreate(profile, day);
+                if (newSpecies && !(entity instanceof Player)) {
+                    saved.addHistory(new HistoryEntry(day, HistoryEntry.Type.NEW_SPECIES, profile.id(), "", 0));
+                }
+
+                Genome genome;
+                if (entity instanceof Player) {
+                    genome = Genome.fromProfile(profile); // le joueur part toujours de l'humain vanilla
+                } else {
+                    genome = record.template().spawnIndividual(RANDOM, 0.035);
+                    record.addBirth();
+                }
+                data.setGenome(genome);
+                data.setBornDay(day);
+                data.setLastCycle(saved.cycles());
+                saved.setDirty();
+                fresh = true;
+            }
+            Phenotype.apply(entity, data.genome(), fresh);
+        });
+    }
+
+    // ───────────────────────── Cycle quotidien ─────────────────────────
+
+    /** Vérifie à chaque tick de l'overworld si un ou plusieurs jours sont passés. */
+    public static void tick(MinecraftServer server) {
+        EvolutionSavedData data = EvolutionSavedData.get(server);
+        long day = currentDay(server);
+        long last = data.lastProcessedDay();
+
+        if (last < 0 || day < last) {
+            // Premier lancement, ou temps remonté avec /time set : on se recale sans évoluer.
+            data.setLastProcessedDay(day);
+            return;
+        }
+        if (day == last) return;
+
+        long missed = day - last;
+        int cycles = (int) Math.min(missed, EvoConfig.maxCatchUpCycles());
+        for (int i = 0; i < cycles; i++) {
+            runCycle(server, day - cycles + 1 + i);
+        }
+        data.setLastProcessedDay(day);
+    }
+
+    /** Exécute un cycle d'évolution complet. */
+    public static void runCycle(MinecraftServer server, long day) {
+        EvolutionSavedData data = EvolutionSavedData.get(server);
+        data.addCycle();
+        double pressure = pressure(data.cycles());
+        double rate = EvoConfig.mutationRate();
+        long mutationsBefore = data.totalMutations();
+
+        // 1. Les individus de chaque monde chargé
+        Map<String, Integer> population = new HashMap<>();
+        for (ServerLevel level : server.getAllLevels()) {
+            for (Entity e : level.getAllEntities()) {
+                if (!(e instanceof LivingEntity living) || !living.isAlive()) continue;
+                evolveIndividual(data, living, day, pressure, rate, population);
+            }
         }
 
-        EvolutionMod.LOGGER.debug("Évolution de {} entités dans {}", entities.size(), level.dimension().location());
-    }
-
-    /**
-     * Applique les valeurs génomiques aux attributs Minecraft réels de l'entité.
-     * C'est ici que la génétique devient réalité dans le jeu.
-     */
-    public void applyGenomeMutations(LivingEntity entity, Genome genome) {
-        try {
-            // TAILLE DU CORPS
-            double bodySize = genome.getGeneValue(Gene.GeneType.BODY_SIZE);
-            if (bodySize > 0.1) {
-                // Modifier l'échelle via NBT ou attributs
-                entity.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
-                    .setBaseValue(Math.max(1.0, genome.getGeneValue(Gene.GeneType.HEALTH_MAX)));
-            }
-
-            // VITESSE
-            double speed = genome.getGeneValue(Gene.GeneType.SPEED);
-            var speedAttr = entity.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
-            if (speedAttr != null) {
-                speedAttr.setBaseValue(Math.max(0.01, Math.min(1.0, speed * 0.1)));
-            }
-
-            // FORCE D'ATTAQUE
-            double strength = genome.getGeneValue(Gene.GeneType.STRENGTH);
-            var attackAttr = entity.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
-            if (attackAttr != null) {
-                attackAttr.setBaseValue(Math.max(0.5, strength));
-            }
-
-            // KNOCKBACK
-            double defense = genome.getGeneValue(Gene.GeneType.DEFENSE);
-            var knockback = entity.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE);
-            if (knockback != null) {
-                knockback.setBaseValue(Math.min(1.0, defense));
-            }
-
-            // BIOLUMINESCENCE -> effet lumineux
-            double biolum = genome.getGeneValue(Gene.GeneType.BIOLUMINESCENCE);
-            if (biolum > 5.0) {
-                entity.setGlowingTag(true);
-            }
-
-            // VENIN -> application de l'effet potion lors des attaques
-            // (géré dans EntityEvolutionHandler)
-
-        } catch (Exception e) {
-            EvolutionMod.LOGGER.warn("Erreur lors de l'application des mutations à {}: {}",
-                entity.getType().getDescriptionId(), e.getMessage());
+        // 2. Les espèces (gabarits de population)
+        if (EvoConfig.plantEvolution()) {
+            for (String p : SpeciesProfile.TREE_SPECIES) data.getOrCreate(SpeciesProfile.forPlant(p), day);
+            for (String p : SpeciesProfile.CROP_SPECIES) data.getOrCreate(SpeciesProfile.forPlant(p), day);
         }
-    }
-
-    /**
-     * Fait évoluer les arbres ET les cultures (blé, carottes, etc.) du monde.
-     * Toutes les espèces végétales accumulent des mutations dans leur génome
-     * de gabarit d'espèce, qui dérive lentement au fil des jours.
-     */
-    private void evolvePlants(ServerLevel level, long day) {
-        // L'évolution végétale est gérée différemment des mobs : on maintient
-        // des "génomes d'espèce" globaux (un par espèce d'arbre/culture, pas
-        // un par plant individuel) qui dérivent lentement et affectent tous
-        // les nouveaux plants générés (voir TreeEvolutionHandler/CropEvolutionHandler).
-
-        String[] treeSpecies = {"oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry"};
-        String[] cropSpecies = {"wheat", "carrot", "potato", "beetroot", "sugar_cane", "melon", "pumpkin", "cactus"};
-
-        evolveSpeciesGroup(treeSpecies, day, 0.5);   // Les arbres évoluent plus lentement
-        evolveSpeciesGroup(cropSpecies, day, 0.8);   // Les cultures, cycle court, évoluent plus vite
-    }
-
-    private void evolveSpeciesGroup(String[] species, long day, double pressureMultiplier) {
-        for (String s : species) {
-            if (!speciesTemplates.containsKey(s)) {
-                speciesTemplates.put(s, Genome.createForSpecies(s));
+        for (SpeciesRecord record : data.species().values()) {
+            if (record.kind() == SpeciesProfile.Kind.PLAYER) {
+                record.setPopulation(population.getOrDefault(record.id(), 0));
+                continue;
             }
+            if (record.kind().isPlant() && !EvoConfig.plantEvolution()) continue;
 
-            Genome genome = speciesTemplates.get(s);
-            List<GeneticEvent> events = genome.applyDailyMutation(
-                globalEnvironmentalPressure * pressureMultiplier, day
-            );
+            double drift = record.kind().isPlant() ? 0.30 : 0.20;
+            List<GeneType> changed = record.template().mutate(RANDOM,
+                drift * rate * (0.5 + pressure), 0.03);
+            data.addMutations(changed.size());
+            if (!record.kind().isPlant()) record.setPopulation(population.getOrDefault(record.id(), 0));
+            record.recordDivergenceSample();
 
-            if (!events.isEmpty()) {
-                EvolutionMod.LOGGER.debug("Espèce végétale {} a mutué : {} changement(s)", s, events.size());
-            }
+            checkSpeciation(server, data, record, day);
         }
-    }
+        data.recordPressure(pressure);
+        data.setDirty();
 
-    /**
-     * Construit les données environnementales pour une entité selon sa position.
-     *
-     * NOTE 1.21.1 : Biome#getDownfall() n'a pas pu être vérifié de façon fiable
-     * dans la documentation disponible pour cette version exacte (les mappings
-     * Mojang/Parchment diffèrent de Yarn/Fabric sur ce point). L'humidité n'étant
-     * qu'un facteur secondaire non-critique dans EnvironmentData (elle n'intervient
-     * dans aucun calcul de fitness actuel), on utilise une valeur neutre fixe
-     * plutôt que de risquer un nom de méthode incorrect non confirmé.
-     */
-    private Genome.EnvironmentData buildEnvironmentData(LivingEntity entity) {
-        Level level = entity.level();
-        float temperature = level.getBiome(entity.blockPosition()).value()
-            .getBaseTemperature();
-        float humidity = 0.5f; // valeur neutre — voir note ci-dessus
+        long newMutations = data.totalMutations() - mutationsBefore;
+        EvolutionMod.LOGGER.info("Cycle d'évolution #{} (jour {}) : {} mutations, pression {}",
+            data.cycles(), day, newMutations, String.format("%.2f", pressure));
 
-        double predatorPressure = calculateLocalPredatorPressure(entity);
-        double foodAvailability = 0.5; // Simplification
-
-        Genome.EnvironmentData env = new Genome.EnvironmentData(
-            temperature, humidity, predatorPressure, foodAvailability
-        );
-        env.isNether = level.dimension() == Level.NETHER;
-        env.isEnd = level.dimension() == Level.END;
-
-        return env;
-    }
-
-    private double calculateLocalPredatorPressure(LivingEntity entity) {
-        // Compter les mobs hostiles proches
-        long hostileCount = entity.level().getEntitiesOfClass(
-            net.minecraft.world.entity.monster.Monster.class,
-            entity.getBoundingBox().inflate(32)
-        ).size();
-        return Math.min(1.0, hostileCount / 20.0);
-    }
-
-    /**
-     * Annonce une spéciation dans le chat des joueurs.
-     */
-    private void announceSpeciation(LivingEntity entity, String newLineage, ServerLevel level) {
-        String entityName = entity.getType().getDescriptionId();
-        String message = String.format(
-            "§6§l[ÉVOLUTION]§r §eMutation radicale! Un %s a divergé vers '%s'! §7(Jour %d)",
-            entityName, newLineage.split(">")[newLineage.split(">").length - 1], currentDay
-        );
-
-        level.getServer().getPlayerList().getPlayers().forEach(player ->
-            player.sendSystemMessage(net.minecraft.network.chat.Component.literal(message))
-        );
-
-        speciationHistory.computeIfAbsent(entityName, k -> new ArrayList<>())
-            .add(new GeneticEvent(GeneticEvent.EventType.SPECIATION, null, 0, currentDay));
-    }
-
-    private void logEvolutionStatus() {
-        EvolutionMod.LOGGER.info(
-            "Bilan évolutif - Jour: {}, Mutations totales: {}, Speciations: {}, Pression: {:.3f}",
-            currentDay, totalMutationsWorldwide, speciationEvents, globalEnvironmentalPressure
-        );
-    }
-
-    // =================== GETTERS ===================
-
-    public long getCurrentDay() { return currentDay; }
-    public long getTotalMutationsWorldwide() { return totalMutationsWorldwide; }
-    public int getSpeciationEvents() { return speciationEvents; }
-    public double getGlobalEnvironmentalPressure() { return globalEnvironmentalPressure; }
-    public Map<String, Genome> getSpeciesTemplates() { return Collections.unmodifiableMap(speciesTemplates); }
-
-    public Genome getSpeciesTemplate(String species) {
-        return speciesTemplates.getOrDefault(species, null);
-    }
-
-    /**
-     * Met à jour le génome "record" (le plus muté) connu pour l'espèce de
-     * cette entité, si le génome actuel dépasse le précédent record en
-     * nombre de mutations cumulées. Inclut le joueur (clé "player").
-     */
-    private void updateMostEvolvedRecord(LivingEntity entity, Genome genome) {
-        String key = (entity instanceof Player)
-            ? "player"
-            : entity.getType().getDescriptionId().replace("entity.minecraft.", "");
-
-        Genome current = mostEvolvedPerSpecies.get(key);
-        if (current == null || genome.getTotalMutations() > current.getTotalMutations()) {
-            mostEvolvedPerSpecies.put(key, genome);
+        if (EvoConfig.dailyReport()) {
+            NotifyMsg msg = new NotifyMsg(NotifyMsg.Kind.DAILY, "evolutionmod.notify.daily",
+                List.of(String.valueOf(day), String.valueOf(newMutations),
+                    String.format("%.0f", pressure * 100)));
+            EvoNetwork.sendToAll(server, msg);
         }
     }
 
-    /**
-     * Vue combinée pour le GUI : toutes les espèces végétales (gabarit
-     * partagé) ET toutes les espèces de mobs/joueur (génome record observé).
-     * C'est la liste complète de "tout ce qui peut évoluer" pour l'écran
-     * /evolution status.
-     */
-    public Map<String, Genome> getAllEvolvableSpecies() {
-        Map<String, Genome> combined = new LinkedHashMap<>();
-        combined.putAll(speciesTemplates);
-        combined.putAll(mostEvolvedPerSpecies);
-        return combined;
+    private static void evolveIndividual(EvolutionSavedData data, LivingEntity entity, long day,
+                                         double pressure, double rate, Map<String, Integer> population) {
+        EvolutionCapability.get(entity).ifPresent(cap -> {
+            Genome genome = cap.genome();
+            if (genome == null || cap.lastCycle() == data.cycles()) return;
+            cap.setLastCycle(data.cycles());
+
+            boolean player = entity instanceof Player;
+            population.merge(genome.species(), 1, Integer::sum);
+
+            double chance = (player ? 0.05 : 0.07) * rate * (0.5 + pressure);
+            List<GeneType> changed = genome.mutate(RANDOM, chance, 0.05);
+            data.addMutations(changed.size());
+
+            SpeciesRecord record = data.get(genome.species());
+            // Survivre un jour entier est un petit succès évolutif
+            if (record != null && !player && cap.bornDay() >= 0 && day - cap.bornDay() >= 1) {
+                record.template().pullTowards(genome, 0.006 * EvoConfig.selectionStrength());
+                record.addSuccess();
+            }
+
+            if (!changed.isEmpty()) {
+                Phenotype.apply(entity, genome, false);
+                sync(entity);
+                if (player && entity instanceof ServerPlayer sp) {
+                    GeneType g = changed.get(0);
+                    EvoNetwork.sendToPlayer(sp, new NotifyMsg(NotifyMsg.Kind.PLAYER,
+                        "evolutionmod.notify.player_mutation", List.of("#gene:" + g.name())));
+                }
+            }
+        });
     }
 
-    /**
-     * Restaure un génome d'espèce depuis la sauvegarde persistante.
-     * Appelé uniquement par {@link com.evolutionmod.world.EvolutionDataSavedData#load}.
-     */
-    public void injectSpeciesTemplate(String speciesName, Genome genome) {
-        speciesTemplates.put(speciesName, genome);
-        EvolutionMod.LOGGER.debug("Template restauré pour '{}'  ({} mutations)",
-                speciesName, genome.getTotalMutations());
+    /** Nomme une nouvelle lignée si l'espèce a assez divergé. */
+    private static boolean checkSpeciation(MinecraftServer server, EvolutionSavedData data,
+                                           SpeciesRecord record, long day) {
+        if (record.targetLevel() <= record.lineages().size()) return false;
+        String name = record.speciate(data.seed());
+        data.addSpeciation();
+        data.addHistory(new HistoryEntry(day, HistoryEntry.Type.SPECIATION, record.id(), name, record.divergence()));
+        if (EvoConfig.announceSpeciation()) {
+            EvoNetwork.sendToAll(server, new NotifyMsg(NotifyMsg.Kind.SPECIATION,
+                "evolutionmod.notify.speciation", List.of("#species:" + record.id(), name)));
+            Component chat = Component.translatable("evolutionmod.chat.speciation",
+                    speciesComponent(record.id()), Component.literal(name).withStyle(ChatFormatting.LIGHT_PURPLE))
+                .withStyle(ChatFormatting.GOLD);
+            server.getPlayerList().broadcastSystemMessage(chat, false);
+        }
+        return true;
+    }
+
+    public static Component speciesComponent(String id) {
+        if (id.startsWith("plant:")) {
+            return Component.translatable("evolutionmod.species." + id.substring(6));
+        }
+        return net.minecraft.world.entity.EntityType.byString(id)
+            .<Component>map(t -> t.getDescription())
+            .orElse(Component.literal(id));
+    }
+
+    // ───────────────────────── Sélection ─────────────────────────
+
+    /** Un individu a réussi (blessé un joueur, s'est reproduit...) : le gabarit se rapproche de lui. */
+    public static void selectFor(LivingEntity entity, double weight) {
+        adjustTemplate(entity, weight, true);
+    }
+
+    /** Un individu a échoué (tué par un joueur) : le gabarit s'en éloigne légèrement. */
+    public static void selectAgainst(LivingEntity entity, double weight) {
+        adjustTemplate(entity, -weight, false);
+    }
+
+    private static void adjustTemplate(LivingEntity entity, double weight, boolean success) {
+        MinecraftServer server = entity.getServer();
+        if (server == null || entity instanceof Player) return;
+        Genome genome = EvolutionCapability.genome(entity);
+        if (genome == null) return;
+        EvolutionSavedData data = EvolutionSavedData.get(server);
+        SpeciesRecord record = data.get(genome.species());
+        if (record == null) return;
+        record.template().pullTowards(genome, weight * EvoConfig.selectionStrength());
+        if (success) record.addSuccess();
+        data.setDirty();
+    }
+
+    public static void recordDeath(LivingEntity entity, boolean byPlayer) {
+        MinecraftServer server = entity.getServer();
+        if (server == null || entity instanceof Player) return;
+        Genome genome = EvolutionCapability.genome(entity);
+        if (genome == null) return;
+        EvolutionSavedData data = EvolutionSavedData.get(server);
+        SpeciesRecord record = data.get(genome.species());
+        if (record != null) {
+            record.addDeath(byPlayer);
+            data.setDirty();
+        }
+    }
+
+    /** Reproduction : l'enfant reçoit un vrai croisement génétique de ses parents. */
+    public static void onBreed(LivingEntity parentA, LivingEntity parentB, LivingEntity child) {
+        Genome a = EvolutionCapability.genome(parentA);
+        Genome b = EvolutionCapability.genome(parentB);
+        if (a == null || b == null || !a.species().equals(b.species())) return;
+        MinecraftServer server = parentA.getServer();
+        if (server == null) return;
+
+        Genome kid = Genome.crossover(a, b, RANDOM);
+        long day = currentDay(server);
+        EvolutionCapability.get(child).ifPresent(cap -> {
+            cap.setGenome(kid);
+            cap.setBornDay(day);
+            cap.setLastCycle(EvolutionSavedData.get(server).cycles());
+        });
+
+        EvolutionSavedData data = EvolutionSavedData.get(server);
+        SpeciesRecord record = data.get(a.species());
+        if (record != null) {
+            record.addBirth();
+            // Les reproducteurs transmettent leurs gènes : sélection (souvent artificielle !)
+            record.template().pullTowards(a, 0.02 * EvoConfig.selectionStrength());
+            record.template().pullTowards(b, 0.02 * EvoConfig.selectionStrength());
+            record.addSuccess();
+            data.setDirty();
+        }
+    }
+
+    // ───────────────────────── Synchronisation ─────────────────────────
+
+    public static void sync(LivingEntity entity) {
+        Genome genome = EvolutionCapability.genome(entity);
+        EvoNetwork.sendToTrackingAndSelf(entity,
+            new SyncGenomeMsg(entity.getId(), genome == null ? new CompoundTag() : genome.save()));
+    }
+
+    public static void syncTo(ServerPlayer player, LivingEntity entity) {
+        Genome genome = EvolutionCapability.genome(entity);
+        if (genome == null) return;
+        EvoNetwork.sendToPlayer(player, new SyncGenomeMsg(entity.getId(), genome.save()));
+    }
+
+    // ───────────────────────── Données pour les écrans ─────────────────────────
+
+    /** Instantané complet du monde pour le Journal d'évolution. */
+    public static CompoundTag buildJournal(ServerPlayer player) {
+        MinecraftServer server = player.getServer();
+        EvolutionSavedData data = EvolutionSavedData.get(server);
+        CompoundTag tag = new CompoundTag();
+        tag.putLong("Day", currentDay(server));
+        tag.putLong("Cycles", data.cycles());
+        tag.putLong("Mutations", data.totalMutations());
+        tag.putInt("Speciations", data.speciations());
+        tag.putDouble("Pressure", pressure(data.cycles()));
+        int[] p = new int[data.pressureHistory().size()];
+        for (int i = 0; i < p.length; i++) p[i] = Float.floatToIntBits(data.pressureHistory().get(i));
+        tag.putIntArray("PressureHistory", p);
+
+        ListTag species = new ListTag();
+        for (SpeciesRecord r : data.species().values()) {
+            if (r.kind() == SpeciesProfile.Kind.PLAYER) continue;
+            species.add(r.toClientTag());
+        }
+        tag.put("Species", species);
+
+        ListTag history = new ListTag();
+        for (HistoryEntry e : data.history()) history.add(e.save());
+        tag.put("History", history);
+
+        tag.putBoolean("PlayerEvolution", EvoConfig.playerEvolution());
+        Genome mine = EvolutionCapability.genome(player);
+        if (mine != null) tag.put("Player", mine.save());
+        return tag;
+    }
+
+    /** Résumé de l'espèce d'un génome pour l'écran de scan. */
+    public static CompoundTag speciesSummary(MinecraftServer server, Genome genome) {
+        SpeciesRecord record = EvolutionSavedData.get(server).get(genome.species());
+        return record == null ? new CompoundTag() : record.toClientTag();
     }
 }

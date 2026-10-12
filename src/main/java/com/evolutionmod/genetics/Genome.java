@@ -1,347 +1,290 @@
 package com.evolutionmod.genetics;
 
-import com.evolutionmod.EvolutionMod;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
+import net.minecraft.util.RandomSource;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Le génome complet d'une entité ou d'une plante.
- * Contient tous les gènes, gère les mutations et la reproduction.
- * Chaque espèce démarre avec un génome de base qui diverge au fil du temps.
+ * Génome d'un individu (mob, joueur) ou gabarit d'une espèce (population, plante).
+ *
+ * Il ne contient que les gènes pertinents pour son espèce : un gène absent vaut
+ * toujours sa valeur neutre, ce qui garantit qu'une créature non mutée se
+ * comporte exactement comme en vanilla.
  */
 public class Genome {
 
-    private final Map<Gene.GeneType, Gene> genes = new EnumMap<>(Gene.GeneType.class);
-    private String speciesLineage;  // Lignée évolutive (ex: "zombie>mutant_A>colossus")
-    private int totalMutations;     // Nombre total de mutations accumulées
-    private long dayBorn;           // Jour de naissance/création
-    private double fitnessScore;    // Score d'adaptation à l'environnement
+    private final String species;
+    private final EnumMap<GeneType, Double> values = new EnumMap<>(GeneType.class);
+    private final EnumMap<GeneType, Integer> geneMutations = new EnumMap<>(GeneType.class);
+    private String lineage;
+    private int totalMutations;
+    private int generation;
 
-    // Dérive génétique : compteur de dérive pour chaque espèce
-    private static final Map<String, Integer> SPECIES_DRIFT = new HashMap<>();
-
-    public Genome(String baseSpecies) {
-        this.speciesLineage = baseSpecies;
-        this.totalMutations = 0;
-        this.dayBorn = 0;
-        this.fitnessScore = 1.0;
+    public Genome(String species, String lineage) {
+        this.species = species;
+        this.lineage = lineage;
     }
 
-    /**
-     * Initialise le génome avec des valeurs de base pour une espèce donnée.
-     */
-    public static Genome createForSpecies(String entityType) {
-        Genome genome = new Genome(entityType);
-        Gene.GeneType[] relevantGenes = getGenesForSpecies(entityType);
+    // ───────────────────────── Création ─────────────────────────
 
-        for (Gene.GeneType geneType : relevantGenes) {
-            double[] bounds = Gene.getValueBounds(geneType);
-            double baseValue = getBaseValueForSpecies(entityType, geneType);
-            double dominance = 0.5 + new Random().nextDouble() * 0.3;
-            double mutationRate = 0.02 + new Random().nextDouble() * 0.03; // 2-5% par jour
-            double mutationRange = (bounds[1] - bounds[0]) * 0.15;
-
-            genome.genes.put(geneType, new Gene(geneType, baseValue, dominance, mutationRate, mutationRange));
+    public static Genome fromProfile(SpeciesProfile profile) {
+        Genome g = new Genome(profile.id(), "");
+        for (GeneType type : profile.genes()) {
+            g.values.put(type, type.clamp(profile.baseValue(type)));
         }
+        return g;
+    }
 
-        return genome;
+    public Genome copy() {
+        Genome g = new Genome(species, lineage);
+        g.values.putAll(values);
+        g.geneMutations.putAll(geneMutations);
+        g.totalMutations = totalMutations;
+        g.generation = generation;
+        return g;
     }
 
     /**
-     * Applique les mutations de la journée.
-     * environmentalPressure : 0.0 = environnement stable, 1.0 = pression maximale
+     * Crée un individu à partir du gabarit de son espèce : chaque gène reçoit une
+     * petite variation individuelle (personne n'est le clone exact de la
+     * population) et, rarement, une mutation spontanée plus marquée.
      */
-    public List<GeneticEvent> applyDailyMutation(double environmentalPressure, long currentDay) {
-        List<GeneticEvent> events = new ArrayList<>();
-        Random random = new Random();
+    public Genome spawnIndividual(RandomSource random, double variation) {
+        Genome g = copy();
+        g.totalMutations = 0;
+        g.geneMutations.clear();
+        for (GeneType type : g.values.keySet()) {
+            double v = g.values.get(type) + random.nextGaussian() * type.range() * variation;
+            g.values.put(type, type.clamp(v));
+        }
+        if (random.nextFloat() < 0.02f) {
+            g.mutateRandomGene(random, 0.25);
+        }
+        return g;
+    }
 
-        for (Map.Entry<Gene.GeneType, Gene> entry : genes.entrySet()) {
-            Gene gene = entry.getValue();
-            boolean mutated = gene.tryMutate(environmentalPressure);
+    // ───────────────────────── Mutation ─────────────────────────
 
-            if (mutated) {
-                totalMutations++;
-                GeneticEvent event = new GeneticEvent(
-                    GeneticEvent.EventType.MUTATION,
-                    gene.getType(),
-                    gene.getValue(),
-                    currentDay
-                );
-                events.add(event);
+    /**
+     * Mutation journalière : chaque gène a une probabilité {@code chance} de varier
+     * selon une loi normale ; 4 % des mutations sont « radicales » (grand saut).
+     *
+     * @return la liste des gènes modifiés (éventuellement vide)
+     */
+    public List<GeneType> mutate(RandomSource random, double chance, double sigma) {
+        List<GeneType> changed = new ArrayList<>();
+        for (GeneType type : List.copyOf(values.keySet())) {
+            if (random.nextDouble() >= chance) continue;
+            boolean radical = random.nextDouble() < 0.04;
+            double amplitude = radical ? 0.25 : sigma;
+            double delta = random.nextGaussian() * type.range() * amplitude;
+            double old = values.get(type);
+            values.put(type, type.clamp(old + delta));
+            geneMutations.merge(type, 1, Integer::sum);
+            totalMutations++;
+            changed.add(type);
+        }
+        return changed;
+    }
 
-                // Vérifier si une mutation radicale déclenche une spéciation
-                if (totalMutations % 50 == 0 && random.nextDouble() < 0.15) {
-                    String newLineage = speciesLineage + ">" + generateMutantName(currentDay);
-                    speciesLineage = newLineage;
-                    events.add(new GeneticEvent(
-                        GeneticEvent.EventType.SPECIATION,
-                        gene.getType(),
-                        0,
-                        currentDay
-                    ));
-                    EvolutionMod.LOGGER.info("Spéciation ! Nouvelle lignée: {}", newLineage);
-                }
+    /** Force la mutation d'un gène pris au hasard (mutagène, laboratoire...). */
+    public GeneType mutateRandomGene(RandomSource random, double amplitude) {
+        if (values.isEmpty()) return null;
+        List<GeneType> keys = new ArrayList<>(values.keySet());
+        GeneType type = keys.get(random.nextInt(keys.size()));
+        double delta = random.nextGaussian() * type.range() * amplitude;
+        values.put(type, type.clamp(values.get(type) + delta));
+        geneMutations.merge(type, 1, Integer::sum);
+        totalMutations++;
+        return type;
+    }
+
+    /**
+     * Croisement sexué : pour chaque gène, l'enfant hérite d'un mélange pondéré
+     * aléatoirement des deux parents (dominance variable), puis peut muter.
+     */
+    public static Genome crossover(Genome a, Genome b, RandomSource random) {
+        Genome child = new Genome(a.species, a.totalMutations >= b.totalMutations ? a.lineage : b.lineage);
+        for (GeneType type : a.values.keySet()) {
+            double va = a.get(type);
+            double vb = b.values.containsKey(type) ? b.get(type) : va;
+            double w = random.nextDouble();
+            // 70 % du temps un parent domine nettement, sinon mélange équilibré
+            if (random.nextDouble() < 0.7) w = w < 0.5 ? 0.15 : 0.85;
+            double v;
+            if (type == GeneType.HUE) {
+                v = blendHue(va, vb, w);
+            } else {
+                v = va * w + vb * (1 - w);
             }
+            child.values.put(type, type.clamp(v));
         }
-
-        // Dérive génétique neutre (accumulation de petits changements sans pression)
-        if (random.nextDouble() < 0.05 * environmentalPressure) {
-            applyGeneticDrift();
-        }
-
-        return events;
-    }
-
-    /**
-     * Croise deux génomes pour créer un enfant (reproduction sexuée simulée).
-     */
-    public Genome reproduceWith(Genome other, long currentDay) {
-        Genome child = new Genome(this.speciesLineage);
-        child.dayBorn = currentDay;
-
-        for (Gene.GeneType type : this.genes.keySet()) {
-            Gene myGene = this.genes.get(type);
-            Gene otherGene = other.genes.get(type);
-
-            if (myGene != null && otherGene != null) {
-                child.genes.put(type, myGene.crossWith(otherGene));
-            } else if (myGene != null) {
-                child.genes.put(type, myGene);
-            } else if (otherGene != null) {
-                child.genes.put(type, otherGene);
-            }
-        }
-
-        // Héritage de la lignée du parent le plus divergent
-        if (this.totalMutations > other.totalMutations) {
-            child.speciesLineage = this.speciesLineage;
-        } else {
-            child.speciesLineage = other.speciesLineage;
-        }
-
+        child.generation = Math.max(a.generation, b.generation) + 1;
+        child.mutate(random, 0.08, 0.05);
         return child;
     }
 
     /**
-     * Dérive génétique : accumulation aléatoire de mutations neutres.
+     * Déplace ce génome (typiquement un gabarit d'espèce) vers {@code target}
+     * d'une fraction {@code weight}. Un poids négatif l'en éloigne : c'est le
+     * mécanisme de sélection (positive ou négative).
      */
-    private void applyGeneticDrift() {
-        Random random = new Random();
-        List<Gene.GeneType> geneTypes = new ArrayList<>(genes.keySet());
-        if (!geneTypes.isEmpty()) {
-            Gene.GeneType randomType = geneTypes.get(random.nextInt(geneTypes.size()));
-            genes.get(randomType).tryMutate(0.5);
+    public void pullTowards(Genome target, double weight) {
+        for (Map.Entry<GeneType, Double> e : values.entrySet()) {
+            GeneType type = e.getKey();
+            if (!target.values.containsKey(type)) continue;
+            double cur = e.getValue();
+            double tv = target.get(type);
+            double next;
+            if (type == GeneType.HUE) {
+                next = blendHue(tv, cur, weight);
+            } else {
+                next = cur + (tv - cur) * weight;
+            }
+            e.setValue(type.clamp(next));
         }
     }
 
-    private String generateMutantName(long day) {
-        String[] prefixes = {"Proto", "Neo", "Hyper", "Ultra", "Crypto", "Xeno", "Meta", "Omega"};
-        String[] suffixes = {"morphus", "rex", "vex", "flux", "form", "oid", "kin", "born"};
-        Random random = new Random(day + totalMutations);
-        return prefixes[random.nextInt(prefixes.length)] + suffixes[random.nextInt(suffixes.length)];
+    private static double blendHue(double a, double b, double wA) {
+        double diff = ((a - b + 540.0) % 360.0) - 180.0;
+        return b + diff * wA;
     }
 
-    /**
-     * Retourne les types de gènes pertinents selon l'espèce.
-     */
-    private static Gene.GeneType[] getGenesForSpecies(String entityType) {
-        return switch (entityType.toLowerCase()) {
-            case "zombie", "skeleton", "husk", "stray" -> new Gene.GeneType[]{
-                Gene.GeneType.BODY_SIZE, Gene.GeneType.COLOR_HUE, Gene.GeneType.COLOR_SATURATION,
-                Gene.GeneType.SPEED, Gene.GeneType.STRENGTH, Gene.GeneType.HEALTH_MAX,
-                Gene.GeneType.AGGRESSION, Gene.GeneType.NOCTURNAL, Gene.GeneType.VENOMOUS,
-                Gene.GeneType.FIRE_RESISTANCE, Gene.GeneType.REGENERATION, Gene.GeneType.BIOLUMINESCENCE,
-                Gene.GeneType.APPENDAGE_COUNT, Gene.GeneType.EYE_TYPE, Gene.GeneType.SKIN_TEXTURE,
-                Gene.GeneType.PACK_BEHAVIOR, Gene.GeneType.INTELLIGENCE
-            };
-            case "creeper" -> new Gene.GeneType[]{
-                Gene.GeneType.BODY_SIZE, Gene.GeneType.COLOR_HUE, Gene.GeneType.COLOR_SATURATION,
-                Gene.GeneType.SPEED, Gene.GeneType.STRENGTH, Gene.GeneType.STEALTH,
-                Gene.GeneType.AGGRESSION, Gene.GeneType.BIOLUMINESCENCE, Gene.GeneType.EXPLOSION_POWER,
-                Gene.GeneType.FIRE_RESISTANCE, Gene.GeneType.PATTERN_TYPE
-            };
-            case "spider", "cave_spider" -> new Gene.GeneType[]{
-                Gene.GeneType.BODY_SIZE, Gene.GeneType.COLOR_HUE, Gene.GeneType.COLOR_SATURATION,
-                Gene.GeneType.SPEED, Gene.GeneType.CLIMBING, Gene.GeneType.VENOMOUS,
-                Gene.GeneType.AGGRESSION, Gene.GeneType.STEALTH, Gene.GeneType.APPENDAGE_COUNT,
-                Gene.GeneType.EYE_TYPE, Gene.GeneType.JUMP_HEIGHT, Gene.GeneType.INTELLIGENCE
-            };
-            case "cow", "pig", "sheep", "chicken" -> new Gene.GeneType[]{
-                Gene.GeneType.BODY_SIZE, Gene.GeneType.COLOR_HUE, Gene.GeneType.COLOR_SATURATION,
-                Gene.GeneType.SPEED, Gene.GeneType.HEALTH_MAX, Gene.GeneType.METABOLISM_RATE,
-                Gene.GeneType.PACK_BEHAVIOR, Gene.GeneType.DIET_TYPE, Gene.GeneType.COLD_RESISTANCE,
-                Gene.GeneType.PATTERN_TYPE, Gene.GeneType.LIMB_LENGTH, Gene.GeneType.SKIN_TEXTURE
-            };
-            case "wolf", "fox" -> new Gene.GeneType[]{
-                Gene.GeneType.BODY_SIZE, Gene.GeneType.COLOR_HUE, Gene.GeneType.SPEED,
-                Gene.GeneType.STRENGTH, Gene.GeneType.INTELLIGENCE, Gene.GeneType.PACK_BEHAVIOR,
-                Gene.GeneType.AGGRESSION, Gene.GeneType.TERRITORY_SIZE, Gene.GeneType.NOCTURNAL,
-                Gene.GeneType.STEALTH, Gene.GeneType.DIET_TYPE, Gene.GeneType.REGENERATION
-            };
-            case "oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry" -> new Gene.GeneType[]{
-                Gene.GeneType.HEIGHT_MAX, Gene.GeneType.COLOR_HUE, Gene.GeneType.COLOR_SATURATION,
-                Gene.GeneType.WOOD_HARDNESS, Gene.GeneType.LEAF_SHAPE, Gene.GeneType.GROWTH_SPEED,
-                Gene.GeneType.ROOT_SPREAD, Gene.GeneType.PHOTOSYNTHESIS, Gene.GeneType.SEASONAL_ADAPT,
-                Gene.GeneType.FRUIT_COLOR, Gene.GeneType.FRUIT_SIZE, Gene.GeneType.FRUIT_EFFECT,
-                Gene.GeneType.BIOLUMINESCENCE
-            };
-            case "wheat", "carrot", "potato", "beetroot" -> new Gene.GeneType[]{
-                Gene.GeneType.GROWTH_SPEED, Gene.GeneType.FRUIT_SIZE, Gene.GeneType.FRUIT_COLOR,
-                Gene.GeneType.FRUIT_EFFECT, Gene.GeneType.PHOTOSYNTHESIS, Gene.GeneType.SEASONAL_ADAPT,
-                Gene.GeneType.COLD_RESISTANCE, Gene.GeneType.ROOT_SPREAD
-            };
-            case "sugar_cane", "melon", "pumpkin", "cactus" -> new Gene.GeneType[]{
-                Gene.GeneType.HEIGHT_MAX, Gene.GeneType.GROWTH_SPEED, Gene.GeneType.FRUIT_SIZE,
-                Gene.GeneType.FRUIT_COLOR, Gene.GeneType.FRUIT_EFFECT, Gene.GeneType.PHOTOSYNTHESIS,
-                Gene.GeneType.ROOT_SPREAD, Gene.GeneType.SEASONAL_ADAPT
-            };
-            // Profil dédié au joueur : gènes pertinents seulement, et surtout des valeurs
-            // de départ proches du neutre (voir getBaseValueForSpecies) — sans ce cas
-            // explicite, "player" tombait dans le `default` ci-dessous qui démarre TOUS
-            // les gènes à leur valeur médiane (ex: BODY_SIZE ≈ 3.0 sur une plage 0.1-6.0),
-            // ce qui rendait le joueur géant dès la connexion.
-            case "player" -> new Gene.GeneType[]{
-                Gene.GeneType.BODY_SIZE, Gene.GeneType.SPEED, Gene.GeneType.STRENGTH,
-                Gene.GeneType.HEALTH_MAX, Gene.GeneType.DEFENSE, Gene.GeneType.JUMP_HEIGHT,
-                Gene.GeneType.SWIM_SPEED, Gene.GeneType.REGENERATION, Gene.GeneType.FIRE_RESISTANCE,
-                Gene.GeneType.COLD_RESISTANCE, Gene.GeneType.POISON_RESISTANCE,
-                Gene.GeneType.METABOLISM_RATE, Gene.GeneType.NOCTURNAL
-            };
-            default -> Gene.GeneType.values();
-        };
-    }
+    // ───────────────────────── Analyse ─────────────────────────
 
-    /**
-     * Valeurs de base adaptées à chaque espèce pour un départ réaliste.
-     *
-     * Pour le joueur spécifiquement, on part de valeurs proches du "vanilla"
-     * (taille ≈1, vitesse/force/vie proches des standards Minecraft) plutôt
-     * que du milieu de la plage de chaque gène — sinon même un joueur "neutre"
-     * démarrerait avec des stats aléatoires éloignées de la normale vanilla.
-     */
-    private static double getBaseValueForSpecies(String entityType, Gene.GeneType geneType) {
-        if (entityType.equalsIgnoreCase("player")) {
-            return switch (geneType) {
-                case BODY_SIZE -> 1.0;             // taille vanilla exacte
-                case SPEED -> 1.0;                 // multiplicateur neutre (voir applyGenomeMutations)
-                case STRENGTH -> 1.0;               // dégâts mains nues vanilla
-                case HEALTH_MAX -> 20.0;            // 10 cœurs vanilla
-                case DEFENSE -> 0.0;                // pas de résistance gratuite
-                case JUMP_HEIGHT -> 1.0;
-                case SWIM_SPEED -> 1.0;
-                case REGENERATION -> 0.0;           // pas de regen gratuite hors faim pleine
-                case FIRE_RESISTANCE, COLD_RESISTANCE, POISON_RESISTANCE -> 0.0;
-                case METABOLISM_RATE -> 1.0;        // faim vanilla
-                case NOCTURNAL -> 0.0;               // diurne par défaut comme tout joueur
-                default -> 0.0;
-            };
+    /** Divergence moyenne 0..1 par rapport à un génome de référence. */
+    public double divergenceFrom(Genome reference) {
+        if (values.isEmpty()) return 0;
+        double total = 0;
+        int count = 0;
+        double pigment = Math.max(get(GeneType.PIGMENT), reference.get(GeneType.PIGMENT));
+        for (Map.Entry<GeneType, Double> e : values.entrySet()) {
+            GeneType type = e.getKey();
+            double d = type.distance(e.getValue(), reference.get(type));
+            if (type == GeneType.HUE) d *= pigment; // une teinte invisible ne compte pas
+            total += d;
+            count++;
         }
-
-        Random rand = new Random(entityType.hashCode() + geneType.ordinal());
-        double[] bounds = Gene.getValueBounds(geneType);
-        double mid = (bounds[0] + bounds[1]) / 2.0;
-        double variance = (bounds[1] - bounds[0]) * 0.2;
-        return mid + (rand.nextDouble() - 0.5) * variance;
+        return count == 0 ? 0 : total / count;
     }
 
-    /**
-     * Calcule le score de fitness basé sur les gènes actuels et l'environnement.
-     */
-    public double calculateFitness(EnvironmentData env) {
-        double fitness = 1.0;
-
-        // Adaptation à la température
-        if (env.temperature < 0.2) {
-            double coldRes = getGeneValue(Gene.GeneType.COLD_RESISTANCE);
-            fitness *= (0.3 + coldRes * 0.7);
+    /** Gène le plus éloigné de son neutre (trait le plus « marquant »). */
+    public GeneType dominantTrait() {
+        GeneType best = null;
+        double bestScore = 0.08;
+        for (Map.Entry<GeneType, Double> e : values.entrySet()) {
+            GeneType t = e.getKey();
+            if (t == GeneType.HUE) continue;
+            double s = t.distance(e.getValue(), t.neutral);
+            if (s > bestScore) {
+                bestScore = s;
+                best = t;
+            }
         }
-        if (env.temperature > 0.8) {
-            double fireRes = getGeneValue(Gene.GeneType.FIRE_RESISTANCE);
-            fitness *= (0.3 + fireRes * 0.7);
-        }
-
-        // Pression des prédateurs
-        if (env.predatorPressure > 0.5) {
-            double speed = getGeneValue(Gene.GeneType.SPEED);
-            double defense = getGeneValue(Gene.GeneType.DEFENSE);
-            fitness *= (speed / 5.0 * 0.5 + defense * 0.5);
-        }
-
-        this.fitnessScore = fitness;
-        return fitness;
+        return best;
     }
 
-    public double getGeneValue(Gene.GeneType type) {
-        Gene gene = genes.get(type);
-        return gene != null ? gene.getValue() : 0.0;
+    /** Couleur ARGB héritée des gènes HUE/PIGMENT (alpha = intensité). */
+    public int tintColor() {
+        double pigment = get(GeneType.PIGMENT);
+        float hue = (float) (get(GeneType.HUE) / 360.0);
+        int rgb = java.awt.Color.HSBtoRGB(hue, 0.85f, 1.0f) & 0xFFFFFF;
+        int alpha = (int) Math.round(Math.min(1.0, pigment) * 140.0);
+        return (alpha << 24) | rgb;
     }
 
-    public Gene getGene(Gene.GeneType type) {
-        return genes.get(type);
+    // ───────────────────────── Accès ─────────────────────────
+
+    public double get(GeneType type) {
+        Double v = values.get(type);
+        return v != null ? v : type.neutral;
     }
 
-    public Map<Gene.GeneType, Gene> getAllGenes() {
-        return Collections.unmodifiableMap(genes);
+    public void set(GeneType type, double value) {
+        values.put(type, type.clamp(value));
     }
 
-    public String getSpeciesLineage() { return speciesLineage; }
-    public int getTotalMutations() { return totalMutations; }
-    public double getFitnessScore() { return fitnessScore; }
-    public long getDayBorn() { return dayBorn; }
+    public boolean has(GeneType type) {
+        return values.containsKey(type);
+    }
 
-    // =================== NBT SERIALIZATION ===================
+    public Set<GeneType> genes() {
+        return Collections.unmodifiableSet(values.keySet());
+    }
 
-    public CompoundTag toNBT() {
+    public int mutationsOf(GeneType type) {
+        return geneMutations.getOrDefault(type, 0);
+    }
+
+    public String species() {
+        return species;
+    }
+
+    public String lineage() {
+        return lineage;
+    }
+
+    public void setLineage(String lineage) {
+        this.lineage = lineage;
+    }
+
+    public int totalMutations() {
+        return totalMutations;
+    }
+
+    public int generation() {
+        return generation;
+    }
+
+    public void setGeneration(int generation) {
+        this.generation = generation;
+    }
+
+    // ───────────────────────── NBT ─────────────────────────
+
+    public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
-        tag.putString("Lineage", speciesLineage);
-        tag.putInt("TotalMutations", totalMutations);
-        tag.putLong("DayBorn", dayBorn);
-        tag.putDouble("FitnessScore", fitnessScore);
-
-        ListTag geneList = new ListTag();
-        for (Gene gene : genes.values()) {
-            geneList.add(gene.toNBT());
+        tag.putString("Species", species);
+        tag.putString("Lineage", lineage == null ? "" : lineage);
+        tag.putInt("Mutations", totalMutations);
+        tag.putInt("Generation", generation);
+        CompoundTag genes = new CompoundTag();
+        CompoundTag counts = new CompoundTag();
+        for (Map.Entry<GeneType, Double> e : values.entrySet()) {
+            genes.putDouble(e.getKey().name(), e.getValue());
+            int c = geneMutations.getOrDefault(e.getKey(), 0);
+            if (c > 0) counts.putInt(e.getKey().name(), c);
         }
-        tag.put("Genes", geneList);
-
+        tag.put("Genes", genes);
+        tag.put("GeneMutations", counts);
         return tag;
     }
 
-    public static Genome fromNBT(CompoundTag tag) {
-        String lineage = tag.getString("Lineage");
-        Genome genome = new Genome(lineage.split(">")[0]);
-        genome.speciesLineage = lineage;
-        genome.totalMutations = tag.getInt("TotalMutations");
-        genome.dayBorn = tag.getLong("DayBorn");
-        genome.fitnessScore = tag.getDouble("FitnessScore");
-
-        ListTag geneList = tag.getList("Genes", 10);
-        for (int i = 0; i < geneList.size(); i++) {
-            Gene gene = Gene.fromNBT(geneList.getCompound(i));
-            genome.genes.put(gene.getType(), gene);
+    public static Genome load(CompoundTag tag) {
+        Genome g = new Genome(tag.getString("Species"), tag.getString("Lineage"));
+        g.totalMutations = tag.getInt("Mutations");
+        g.generation = tag.getInt("Generation");
+        CompoundTag genes = tag.getCompound("Genes");
+        for (String key : genes.getAllKeys()) {
+            GeneType type = GeneType.byName(key);
+            if (type != null) g.values.put(type, type.clamp(genes.getDouble(key)));
         }
-
-        return genome;
+        CompoundTag counts = tag.getCompound("GeneMutations");
+        for (String key : counts.getAllKeys()) {
+            GeneType type = GeneType.byName(key);
+            if (type != null) g.geneMutations.put(type, counts.getInt(key));
+        }
+        return g;
     }
 
-    /**
-     * Données environnementales influençant la pression de sélection.
-     */
-    public static class EnvironmentData {
-        public double temperature;
-        public double humidity;
-        public double predatorPressure;
-        public double foodAvailability;
-        public boolean isNether;
-        public boolean isEnd;
-
-        public EnvironmentData(double temp, double humid, double pred, double food) {
-            this.temperature = temp;
-            this.humidity = humid;
-            this.predatorPressure = pred;
-            this.foodAvailability = food;
-        }
+    /** Vrai si le tag ressemble à un génome sauvegardé par cette version du mod. */
+    public static boolean isValid(CompoundTag tag) {
+        return tag != null && tag.contains("Species") && tag.contains("Genes");
     }
 }

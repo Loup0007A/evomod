@@ -1,205 +1,182 @@
 package com.evolutionmod.items;
 
 import com.evolutionmod.core.EvolutionCapability;
-import com.evolutionmod.genetics.Gene;
+import com.evolutionmod.core.EvolutionManager;
+import com.evolutionmod.core.Phenotype;
+import com.evolutionmod.genetics.GeneType;
 import com.evolutionmod.genetics.Genome;
-import com.evolutionmod.util.ItemNbt;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.CustomData;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Comparator;
 import java.util.List;
 
 /**
- * Cristal Génomique — artefact central du mod.
+ * Cristal génomique : stocke un génome complet.
  *
- * Usages :
- *  [CLIC DROIT sur mob]  → Séquencer : lire le génome du mob dans le cristal
- *  [CLIC DROIT + SHIFT]  → Injecter : transférer les gènes du cristal vers un mob
- *
- * Tiers selon les mutations stockées :
- *   0-10  mut  → Cristal Brut
- *   11-30 mut  → Cristal Évolué
- *   31-60 mut  → Cristal Muté
- *   60+   mut  → Cristal Apex
- *
- * NOTE 1.21.1 : getOrCreateTag()/getTag()/hasTag()/setHoverName()/resetHoverName()
- * ont été retirés d'ItemStack (remplacés par les DataComponents). On passe par
- * l'utilitaire ItemNbt pour le NBT libre, et DataComponents.CUSTOM_NAME pour le nom.
+ * <ul>
+ *   <li>Vide + clic droit sur une créature : séquence (copie) son génome.</li>
+ *   <li>Plein + Maj + clic droit sur une créature de la même espèce : injection
+ *       (croisement du génome stocké avec celui de la créature).</li>
+ *   <li>Au laboratoire : fusion, clonage, mutagenèse.</li>
+ * </ul>
  */
 public class GeneticCrystalItem extends Item {
 
+    private static final String KEY = "StoredGenome";
+
     public GeneticCrystalItem() {
-        super(new Item.Properties().stacksTo(1).fireResistant());
+        super(new Item.Properties().stacksTo(16).fireResistant().rarity(Rarity.UNCOMMON));
     }
 
-    // ──────────────────────────────────────────────────────
-    //  Interaction avec une entité vivante
-    // ──────────────────────────────────────────────────────
+    // ───────────────────────── Données ─────────────────────────
+
+    public static boolean hasGenome(ItemStack stack) {
+        if (!(stack.getItem() instanceof GeneticCrystalItem)) return false;
+        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        return data != null && data.contains(KEY);
+    }
+
+    @Nullable
+    public static Genome getGenome(ItemStack stack) {
+        if (!hasGenome(stack)) return null;
+        CompoundTag tag = stack.get(DataComponents.CUSTOM_DATA).copyTag().getCompound(KEY);
+        return Genome.isValid(tag) ? Genome.load(tag) : null;
+    }
+
+    public static ItemStack withGenome(ItemStack stack, Genome genome) {
+        CompoundTag root = new CompoundTag();
+        root.put(KEY, genome.save());
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(root));
+        return stack;
+    }
+
+    public static void clear(ItemStack stack) {
+        stack.remove(DataComponents.CUSTOM_DATA);
+    }
+
+    // ───────────────────────── Interaction ─────────────────────────
 
     @Override
-    public InteractionResult interactLivingEntity(ItemStack stack, Player player,
-                                                   LivingEntity target, InteractionHand hand) {
+    public InteractionResult interactLivingEntity(ItemStack stack, Player player, LivingEntity target,
+                                                  InteractionHand hand) {
         if (player.level().isClientSide()) return InteractionResult.SUCCESS;
-
-        if (player.isShiftKeyDown()) {
-            return injectGenes(stack, player, target);
-        } else {
-            return sequenceGenome(stack, player, target);
-        }
-    }
-
-    /**
-     * Lit le génome de l'entité cible et le stocke dans le cristal.
-     */
-    private InteractionResult sequenceGenome(ItemStack stack, Player player, LivingEntity target) {
-        var result = new InteractionResult[]{ InteractionResult.FAIL };
-
-        EvolutionCapability.getEvolutionData(target).ifPresent(evoData -> {
-            Genome genome = evoData.getGenome();
-            if (genome == null) {
-                player.sendSystemMessage(Component.literal("§cCette entité n'a pas de génome détectable."));
-                result[0] = InteractionResult.FAIL;
-                return;
-            }
-
-            ItemNbt.update(stack, tag -> {
-                tag.put("StoredGenome", genome.toNBT());
-                tag.putString("SourceEntity", target.getType().getDescriptionId());
-                tag.putInt("SequencedMutations", genome.getTotalMutations());
-            });
-
-            String tier = getTierName(genome.getTotalMutations());
-            String[] lineageParts = genome.getSpeciesLineage().split(">");
-            stack.set(DataComponents.CUSTOM_NAME, Component.literal(
-                tier + " §f[" + lineageParts[lineageParts.length - 1] + "]"
-            ));
-
-            player.sendSystemMessage(Component.literal(
-                "§6[Séquençage] §eGénome de §f" + target.getType().getDescriptionId() +
-                " §ecapturé ! §7(" + genome.getTotalMutations() + " mutations, lignée: " +
-                genome.getSpeciesLineage() + ")"
-            ));
-
-            spawnSequencingParticles(target);
-            result[0] = InteractionResult.SUCCESS;
-        });
-
-        return result[0];
-    }
-
-    /**
-     * Injecte les gènes stockés dans l'entité cible.
-     * Crée un transfert horizontal de gènes (HGT) — phénomène réel en biologie !
-     */
-    private InteractionResult injectGenes(ItemStack stack, Player player, LivingEntity target) {
-        if (!ItemNbt.hasKey(stack, "StoredGenome")) {
-            player.sendSystemMessage(Component.literal("§cLe cristal est vide. Séquencez d'abord un génome."));
+        Genome targetGenome = EvolutionCapability.genome(target);
+        if (targetGenome == null) {
+            player.displayClientMessage(Component.translatable("evolutionmod.crystal.no_genome")
+                .withStyle(ChatFormatting.RED), true);
             return InteractionResult.FAIL;
         }
 
-        CompoundTag tag = ItemNbt.get(stack);
-        Genome storedGenome = Genome.fromNBT(tag.getCompound("StoredGenome"));
-
-        EvolutionCapability.getEvolutionData(target).ifPresent(evoData -> {
-            Genome targetGenome = evoData.getGenome();
-            if (targetGenome == null) return;
-
-            Genome hybridGenome = targetGenome.reproduceWith(storedGenome,
-                    target.level().getDayTime() / 24000L);
-
-            evoData.setGenome(hybridGenome);
-
-            com.evolutionmod.core.EvolutionManager.getInstance()
-                    .applyGenomeMutations(target, hybridGenome);
-
-            player.sendSystemMessage(Component.literal(
-                "§5[Injection] §dTransfert génétique horizontal appliqué ! " +
-                "§7Nouvelle lignée: §f" + hybridGenome.getSpeciesLineage()
-            ));
-
-            target.level().broadcastEntityEvent(target, (byte) 20);
-        });
-
-        // Le cristal se vide à 50% de chance (usage consomme)
-        if (Math.random() < 0.5) {
-            ItemNbt.removeKey(stack, "StoredGenome");
-            stack.remove(DataComponents.CUSTOM_NAME);
-            player.sendSystemMessage(Component.literal("§7Le cristal s'est vidé lors de l'injection."));
+        ItemStack held = player.getItemInHand(hand);
+        if (player.isShiftKeyDown() && hasGenome(held)) {
+            return inject(held, player, target, targetGenome);
+        }
+        if (hasGenome(held)) {
+            player.displayClientMessage(Component.translatable("evolutionmod.crystal.full")
+                .withStyle(ChatFormatting.YELLOW), true);
+            return InteractionResult.FAIL;
         }
 
+        // Séquençage : un cristal vide de la pile devient un cristal plein
+        ItemStack filled = withGenome(new ItemStack(this), targetGenome);
+        held.shrink(1);
+        if (held.isEmpty()) {
+            player.setItemInHand(hand, filled);
+        } else if (!player.getInventory().add(filled)) {
+            player.drop(filled, false);
+        }
+        effects(target, true);
+        player.displayClientMessage(Component.translatable("evolutionmod.crystal.sequenced",
+            target.getDisplayName()).withStyle(ChatFormatting.AQUA), true);
         return InteractionResult.SUCCESS;
     }
 
-    // ──────────────────────────────────────────────────────
-    //  Tooltip / Affichage
-    // ──────────────────────────────────────────────────────
+    private InteractionResult inject(ItemStack held, Player player, LivingEntity target, Genome targetGenome) {
+        Genome stored = getGenome(held);
+        if (stored == null) return InteractionResult.FAIL;
+        if (!stored.species().equals(targetGenome.species())) {
+            player.displayClientMessage(Component.translatable("evolutionmod.crystal.incompatible")
+                .withStyle(ChatFormatting.RED), true);
+            return InteractionResult.FAIL;
+        }
+        Genome hybrid = Genome.crossover(targetGenome, stored, target.getRandom());
+        EvolutionCapability.get(target).ifPresent(cap -> cap.setGenome(hybrid));
+        Phenotype.apply(target, hybrid, false);
+        EvolutionManager.sync(target);
+        effects(target, false);
+        player.displayClientMessage(Component.translatable("evolutionmod.crystal.injected",
+            target.getDisplayName()).withStyle(ChatFormatting.LIGHT_PURPLE), true);
+        if (!player.getAbilities().instabuild) {
+            held.shrink(1);
+        }
+        return InteractionResult.SUCCESS;
+    }
+
+    private static void effects(LivingEntity target, boolean sequence) {
+        if (target.level() instanceof ServerLevel level) {
+            level.sendParticles(sequence ? ParticleTypes.ENCHANT : ParticleTypes.WITCH,
+                target.getX(), target.getY() + target.getBbHeight() / 2, target.getZ(),
+                30, target.getBbWidth() / 2, target.getBbHeight() / 2, target.getBbWidth() / 2, 0.2);
+            level.playSound(null, target.blockPosition(),
+                sequence ? SoundEvents.AMETHYST_BLOCK_CHIME : SoundEvents.BREWING_STAND_BREW,
+                SoundSource.PLAYERS, 1.0f, sequence ? 1.4f : 1.0f);
+        }
+    }
+
+    // ───────────────────────── Affichage ─────────────────────────
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context,
-                                 List<Component> tooltip, TooltipFlag flag) {
-        if (!ItemNbt.hasKey(stack, "StoredGenome")) {
-            tooltip.add(Component.literal("§7Vide — Clic droit sur un mob pour séquencer"));
-            tooltip.add(Component.literal("§8Shift + Clic droit → Injecter le génome"));
+    public boolean isFoil(ItemStack stack) {
+        return hasGenome(stack);
+    }
+
+    @Override
+    public Component getName(ItemStack stack) {
+        Genome g = getGenome(stack);
+        if (g == null) return Component.translatable("item.evolutionmod.genetic_crystal.empty");
+        return Component.translatable("item.evolutionmod.genetic_crystal.filled",
+            EvolutionManager.speciesComponent(g.species()));
+    }
+
+    @Override
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip,
+                                TooltipFlag flag) {
+        Genome g = getGenome(stack);
+        if (g == null) {
+            tooltip.add(Component.translatable("evolutionmod.crystal.tip.empty").withStyle(ChatFormatting.GRAY));
             return;
         }
-
-        CompoundTag tag = ItemNbt.get(stack);
-        Genome genome = Genome.fromNBT(tag.getCompound("StoredGenome"));
-        String source = tag.getString("SourceEntity");
-
-        tooltip.add(Component.literal("§7Source: §f" + source));
-        tooltip.add(Component.literal("§7Lignée: §f" + genome.getSpeciesLineage()));
-        tooltip.add(Component.literal("§7Mutations: §f" + genome.getTotalMutations()));
-        tooltip.add(Component.literal("§7Génération: §f" + calcMaxGeneration(genome)));
-        tooltip.add(Component.literal(""));
-        tooltip.add(Component.literal("§eTOP 3 gènes exprimés:"));
-
-        genome.getAllGenes().entrySet().stream()
-            .sorted((a, b) -> Integer.compare(b.getValue().getGeneration(), a.getValue().getGeneration()))
-            .limit(3)
-            .forEach(entry -> tooltip.add(Component.literal(
-                "  §6" + entry.getKey().name() + " §7= §f" +
-                String.format("%.2f", entry.getValue().getValue()) +
-                " §8(gen " + entry.getValue().getGeneration() + ")"
-            )));
-
-        tooltip.add(Component.literal(""));
-        tooltip.add(Component.literal("§8Shift + Clic droit → Injecter dans un mob"));
-    }
-
-    // ──────────────────────────────────────────────────────
-    //  Helpers
-    // ──────────────────────────────────────────────────────
-
-    private String getTierName(int mutations) {
-        if (mutations >= 60) return "§5§l✦ Cristal Apex";
-        if (mutations >= 31) return "§4§lCristal Muté";
-        if (mutations >= 11) return "§d§lCristal Évolué";
-        return "§9Cristal Brut";
-    }
-
-    private int calcMaxGeneration(Genome genome) {
-        return genome.getAllGenes().values().stream()
-                .mapToInt(Gene::getGeneration)
-                .max().orElse(0);
-    }
-
-    private void spawnSequencingParticles(LivingEntity entity) {
-        if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-            serverLevel.sendParticles(
-                net.minecraft.core.particles.ParticleTypes.PORTAL,
-                entity.getX(), entity.getY() + entity.getBbHeight() / 2, entity.getZ(),
-                20, 0.5, 0.5, 0.5, 0.05
-            );
+        if (!g.lineage().isEmpty()) {
+            tooltip.add(Component.translatable("evolutionmod.tip.lineage", g.lineage())
+                .withStyle(ChatFormatting.LIGHT_PURPLE));
         }
+        tooltip.add(Component.translatable("evolutionmod.tip.mutations", g.totalMutations(), g.generation())
+            .withStyle(ChatFormatting.GRAY));
+        g.genes().stream()
+            .filter(t -> t != GeneType.HUE)
+            .sorted(Comparator.comparingDouble((GeneType t) -> -t.distance(g.get(t), t.neutral)))
+            .limit(6)
+            .forEach(t -> tooltip.add(Component.literal(" • ")
+                .append(Component.translatable(t.translationKey()))
+                .append(Component.literal(" " + t.format(g.get(t))).withStyle(ChatFormatting.WHITE))
+                .withStyle(ChatFormatting.DARK_AQUA)));
+        tooltip.add(Component.translatable("evolutionmod.crystal.tip.full").withStyle(ChatFormatting.DARK_GRAY));
     }
 }

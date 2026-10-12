@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["IGI", "CBC", "III"],
+  "key": {
+    "I": { "item": "minecraft:iron_ingot" },
+    "G": { "item": "minecraft:glass" },
+    "C": { "item": "minecraft:copper_ingot" },
+    "B": { "item": "minecraft:brewing_stand" }
+  },
+  "result": { "id": "evolutionmod:genetic_lab", "count": 1 }
+}

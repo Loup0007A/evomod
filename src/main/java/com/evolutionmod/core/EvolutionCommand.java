@@ -1,230 +1,165 @@
 package com.evolutionmod.core;
 
 import com.evolutionmod.EvolutionMod;
-import com.evolutionmod.genetics.Gene;
-import com.evolutionmod.genetics.Genome;
+import com.evolutionmod.items.EvolutionScannerItem;
+import com.evolutionmod.network.EvoNetwork;
+import com.evolutionmod.network.JournalDataMsg;
+import com.evolutionmod.world.EvolutionSavedData;
+import com.evolutionmod.world.HistoryEntry;
+import com.evolutionmod.world.SpeciesRecord;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-import java.util.Map;
+import java.util.Comparator;
+import java.util.List;
 
 /**
- * Commandes pour inspecter et gérer l'évolution en jeu.
- *
- * /evolution status      - Statistiques globales d'évolution
- * /evolution inspect     - Génome de l'entité visée
- * /evolution accelerate  - Accélérer l'évolution (admin)
- * /evolution history     - Historique évolutif du monde
+ * /evolution                 ouvre le Journal d'évolution
+ * /evolution inspect [cible] analyse la créature visée (ou la cible)
+ * /evolution species         classement des espèces dans le chat
+ * /evolution history         derniers événements
+ * /evolution cycle [n]       (op) force n cycles d'évolution
+ * /evolution reset           (op) efface toute l'histoire évolutive du monde
  */
 @Mod.EventBusSubscriber(modid = EvolutionMod.MOD_ID)
-public class EvolutionCommand {
+public final class EvolutionCommand {
+
+    private EvolutionCommand() {}
 
     @SubscribeEvent
-    public static void onRegisterCommands(RegisterCommandsEvent event) {
-        CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
-
-        dispatcher.register(
-            Commands.literal("evolution")
-                .then(Commands.literal("status")
-                    .executes(EvolutionCommand::executeStatus))
-                .then(Commands.literal("inspect")
-                    .executes(EvolutionCommand::executeInspect))
-                .then(Commands.literal("history")
-                    .executes(EvolutionCommand::executeHistory))
-                .then(Commands.literal("accelerate")
-                    .requires(src -> src.hasPermission(2))
-                    .executes(EvolutionCommand::executeAccelerate))
-                .then(Commands.literal("genome")
-                    .executes(EvolutionCommand::executeGenome))
-        );
+    public static void onRegister(RegisterCommandsEvent event) {
+        CommandDispatcher<CommandSourceStack> d = event.getDispatcher();
+        d.register(Commands.literal("evolution")
+            .executes(EvolutionCommand::journal)
+            .then(Commands.literal("journal").executes(EvolutionCommand::journal))
+            .then(Commands.literal("status").executes(EvolutionCommand::journal))
+            .then(Commands.literal("inspect")
+                .executes(ctx -> inspect(ctx, null))
+                .then(Commands.argument("target", EntityArgument.entity())
+                    .executes(ctx -> inspect(ctx, EntityArgument.getEntity(ctx, "target")))))
+            .then(Commands.literal("species").executes(EvolutionCommand::species))
+            .then(Commands.literal("history").executes(EvolutionCommand::history))
+            .then(Commands.literal("cycle")
+                .requires(s -> s.hasPermission(2))
+                .executes(ctx -> cycle(ctx, 1))
+                .then(Commands.argument("count", IntegerArgumentType.integer(1, 50))
+                    .executes(ctx -> cycle(ctx, IntegerArgumentType.getInteger(ctx, "count")))))
+            .then(Commands.literal("reset")
+                .requires(s -> s.hasPermission(2))
+                .executes(EvolutionCommand::reset)));
     }
 
-    /**
-     * Envoie un EvolutionStatusPacket au joueur pour ouvrir l'écran interactif
-     * /evolution status, qui liste toutes les espèces évolvables (plantes,
-     * mobs, et joueur) avec le détail complet de leurs gènes, cliquable.
-     *
-     * NOTE 1.21.1 (vérifié dans le code source Forge réel, Channel.java) :
-     * la signature est send(MSG msg, PacketDistributor.PacketTarget target) —
-     * le message en premier argument, pas la cible.
-     */
-    private static int executeStatus(CommandContext<CommandSourceStack> ctx) {
-        EvolutionManager mgr = EvolutionManager.getInstance();
-        CommandSourceStack source = ctx.getSource();
-
-        try {
-            net.minecraft.server.level.ServerPlayer player = source.getPlayerOrException();
-
-            Map<String, net.minecraft.nbt.CompoundTag> speciesGenomes = new java.util.LinkedHashMap<>();
-            for (Map.Entry<String, Genome> entry : mgr.getAllEvolvableSpecies().entrySet()) {
-                speciesGenomes.put(entry.getKey(), entry.getValue().toNBT());
-            }
-
-            com.evolutionmod.network.EvolutionStatusPacket packet = new com.evolutionmod.network.EvolutionStatusPacket(
-                speciesGenomes,
-                mgr.getCurrentDay(),
-                mgr.getTotalMutationsWorldwide(),
-                mgr.getSpeciationEvents(),
-                mgr.getGlobalEnvironmentalPressure()
-            );
-
-            com.evolutionmod.network.EvolutionNetwork.CHANNEL.send(
-                packet,
-                net.minecraftforge.network.PacketDistributor.PLAYER.with(player)
-            );
-
-        } catch (Exception e) {
-            // Source non-joueur (ex: console serveur) : on retombe sur le résumé texte,
-            // l'écran graphique n'ayant aucun sens hors d'un client.
-            source.sendSuccess(() -> Component.literal(
-                "\n§6§l═══ ÉTAT DE L'ÉVOLUTION ═══\n" +
-                "§eJour actuel: §f" + mgr.getCurrentDay() + "\n" +
-                "§eMutations totales: §f" + mgr.getTotalMutationsWorldwide() + "\n" +
-                "§eSpéciations: §f" + mgr.getSpeciationEvents() + "\n" +
-                "§ePression environnementale: §f" + String.format("%.1f%%", mgr.getGlobalEnvironmentalPressure() * 100) + "\n" +
-                "§eEspèces suivies: §f" + mgr.getAllEvolvableSpecies().size()
-            ), false);
-        }
+    private static int journal(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        EvoNetwork.sendToPlayer(player, new JournalDataMsg(EvolutionManager.buildJournal(player)));
         return 1;
     }
 
-    private static int executeInspect(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack source = ctx.getSource();
-
-        try {
-            Player player = source.getPlayerOrException();
-
-            // Trouver l'entité que le joueur regarde
-            Entity target = getEntityPlayerLooksAt(player);
-
-            if (!(target instanceof LivingEntity living)) {
-                source.sendFailure(Component.literal("§cRegardez une entité vivante pour l'inspecter."));
-                return 0;
-            }
-
-            EvolutionCapability.getEvolutionData(living).ifPresent(evoData -> {
-                Genome genome = evoData.getGenome();
-                if (genome == null) {
-                    source.sendSuccess(() -> Component.literal("§7Cette entité n'a pas encore de données génétiques."), false);
-                    return;
-                }
-
-                StringBuilder sb = new StringBuilder();
-                sb.append("\n§6§l═══ GÉNOME DE ").append(living.getType().getDescriptionId().toUpperCase()).append(" ═══\n");
-                sb.append("§eLineage: §f").append(genome.getSpeciesLineage()).append("\n");
-                sb.append("§eMutations accumulées: §f").append(genome.getTotalMutations()).append("\n");
-                sb.append("§eFitness score: §f").append(String.format("%.3f", genome.getFitnessScore())).append("\n");
-                sb.append("§7─────────── Gènes ───────────\n");
-
-                for (Map.Entry<Gene.GeneType, Gene> entry : genome.getAllGenes().entrySet()) {
-                    Gene gene = entry.getValue();
-                    String barColor = gene.getGeneration() > 5 ? "§c" : gene.getGeneration() > 2 ? "§e" : "§a";
-                    sb.append(barColor).append(gene.getType().name())
-                      .append("§7: §f").append(String.format("%.3f", gene.getValue()))
-                      .append(" §8(gen ").append(gene.getGeneration()).append(")\n");
-                }
-
-                String finalText = sb.toString();
-                source.sendSuccess(() -> Component.literal(finalText), false);
-            });
-
-        } catch (Exception e) {
-            source.sendFailure(Component.literal("§cErreur : " + e.getMessage()));
+    private static int inspect(CommandContext<CommandSourceStack> ctx, Entity explicit) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        Entity target = explicit != null ? explicit : lookedAt(player);
+        if (!(target instanceof LivingEntity living)) {
+            ctx.getSource().sendFailure(Component.translatable("evolutionmod.command.no_target"));
+            return 0;
         }
-        return 1;
+        return EvolutionScannerItem.scan(player, living) ? 1 : 0;
     }
 
-    private static int executeHistory(CommandContext<CommandSourceStack> ctx) {
-        EvolutionManager mgr = EvolutionManager.getInstance();
-        CommandSourceStack source = ctx.getSource();
-
-        StringBuilder sb = new StringBuilder("\n§6§l═══ HISTORIQUE ÉVOLUTIF ═══\n");
-
-        if (mgr.getSpeciesTemplates().isEmpty()) {
-            sb.append("§7Aucune espèce suivie pour le moment...");
-        } else {
-            for (Map.Entry<String, Genome> entry : mgr.getSpeciesTemplates().entrySet()) {
-                Genome genome = entry.getValue();
-                sb.append("§e").append(entry.getKey()).append(":\n");
-                sb.append("  §7Lignée: §f").append(genome.getSpeciesLineage()).append("\n");
-                sb.append("  §7Mutations: §f").append(genome.getTotalMutations()).append("\n");
-            }
-        }
-
-        sb.append("\n§6Total speciations: §f").append(mgr.getSpeciationEvents());
-
-        String text = sb.toString();
-        source.sendSuccess(() -> Component.literal(text), false);
-        return 1;
+    private static Entity lookedAt(ServerPlayer player) {
+        double reach = 24.0;
+        Vec3 eye = player.getEyePosition();
+        Vec3 end = eye.add(player.getLookAngle().scale(reach));
+        AABB box = player.getBoundingBox().expandTowards(player.getLookAngle().scale(reach)).inflate(1.0);
+        EntityHitResult hit = ProjectileUtil.getEntityHitResult(player, eye, end, box,
+            e -> e instanceof LivingEntity && !e.isSpectator(), reach * reach);
+        return hit == null ? null : hit.getEntity();
     }
 
-    private static int executeAccelerate(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack source = ctx.getSource();
-        // Déclencher manuellement 5 cycles d'évolution
-        if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-            long currentDay = EvolutionManager.getInstance().getCurrentDay();
-            for (int i = 1; i <= 5; i++) {
-                EvolutionManager.getInstance().onDayChange(currentDay + i, serverLevel);
+    private static int species(CommandContext<CommandSourceStack> ctx) {
+        MinecraftServer server = ctx.getSource().getServer();
+        EvolutionSavedData data = EvolutionSavedData.get(server);
+        List<SpeciesRecord> list = data.species().values().stream()
+            .filter(r -> !r.id().equals("minecraft:player"))
+            .sorted(Comparator.comparingDouble(SpeciesRecord::divergence).reversed())
+            .limit(12).toList();
+        ctx.getSource().sendSuccess(() -> Component.translatable("evolutionmod.command.species_header",
+            EvolutionManager.currentDay(server), data.cycles()).withStyle(ChatFormatting.GOLD), false);
+        for (SpeciesRecord r : list) {
+            MutableComponent line = Component.literal(" • ").withStyle(ChatFormatting.DARK_GRAY)
+                .append(EvolutionManager.speciesComponent(r.id()).copy().withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(String.format("  %.1f%%", r.divergence() * 100)).withStyle(ChatFormatting.WHITE));
+            if (!r.currentLineage().isEmpty()) {
+                line.append(Component.literal("  → " + r.currentLineage()).withStyle(ChatFormatting.LIGHT_PURPLE));
             }
-            source.sendSuccess(() -> Component.literal(
-                "§6[ÉVOLUTION] 5 cycles d'évolution accélérés appliqués !"
-            ), true);
+            ctx.getSource().sendSuccess(() -> line, false);
         }
-        return 1;
+        return list.size();
     }
 
-    private static int executeGenome(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack source = ctx.getSource();
-        try {
-            Player player = source.getPlayerOrException();
-            source.sendSuccess(() -> Component.literal(
-                "§7Note: Les joueurs n'évoluent pas encore...\n" +
-                "§8Mais qui sait ce que l'avenir réserve... §7:D"
-            ), false);
-        } catch (Exception e) {
-            source.sendFailure(Component.literal("§cCette commande nécessite un joueur."));
+    private static int history(CommandContext<CommandSourceStack> ctx) {
+        EvolutionSavedData data = EvolutionSavedData.get(ctx.getSource().getServer());
+        List<HistoryEntry> h = data.history();
+        ctx.getSource().sendSuccess(() -> Component.translatable("evolutionmod.command.history_header")
+            .withStyle(ChatFormatting.GOLD), false);
+        if (h.isEmpty()) {
+            ctx.getSource().sendSuccess(() -> Component.translatable("evolutionmod.journal.history.empty")
+                .withStyle(ChatFormatting.GRAY), false);
         }
-        return 1;
+        for (int i = Math.max(0, h.size() - 10); i < h.size(); i++) {
+            HistoryEntry e = h.get(i);
+            Component line = Component.translatable("evolutionmod.journal.day", e.day())
+                .withStyle(ChatFormatting.DARK_GRAY)
+                .append(Component.literal(" "))
+                .append(historyText(e));
+            ctx.getSource().sendSuccess(() -> line, false);
+        }
+        return h.size();
     }
 
-    private static Entity getEntityPlayerLooksAt(Player player) {
-        // Raytrace simple : entité dans la direction du regard à 5 blocs
-        var level = player.level();
-        var vec = player.getEyePosition();
-        var look = player.getLookAngle();
-        var end = vec.add(look.scale(5));
+    public static Component historyText(HistoryEntry e) {
+        Component species = EvolutionManager.speciesComponent(e.species());
+        return switch (e.type()) {
+            case SPECIATION -> Component.translatable("evolutionmod.history.speciation", species,
+                Component.literal(e.detail()).withStyle(ChatFormatting.LIGHT_PURPLE));
+            case NEW_SPECIES -> Component.translatable("evolutionmod.history.new_species", species);
+            default -> Component.translatable("evolutionmod.history.generic", species, e.detail());
+        };
+    }
 
-        var clip = level.clip(new net.minecraft.world.level.ClipContext(
-            vec, end,
-            net.minecraft.world.level.ClipContext.Block.OUTLINE,
-            net.minecraft.world.level.ClipContext.Fluid.NONE,
-            player
-        ));
-
-        var entityList = level.getEntitiesOfClass(
-            LivingEntity.class,
-            player.getBoundingBox().expandTowards(look.scale(5)).inflate(1)
-        );
-
-        Entity closest = null;
-        double closestDist = Double.MAX_VALUE;
-        for (Entity e : entityList) {
-            if (e == player) continue;
-            double dist = e.distanceTo(player);
-            if (dist < closestDist) {
-                closestDist = dist;
-                closest = e;
-            }
+    private static int cycle(CommandContext<CommandSourceStack> ctx, int count) {
+        MinecraftServer server = ctx.getSource().getServer();
+        long day = EvolutionManager.currentDay(server);
+        for (int i = 0; i < count; i++) {
+            EvolutionManager.runCycle(server, day);
         }
-        return closest;
+        ctx.getSource().sendSuccess(() -> Component.translatable("evolutionmod.command.cycled", count)
+            .withStyle(ChatFormatting.GREEN), true);
+        return count;
+    }
+
+    private static int reset(CommandContext<CommandSourceStack> ctx) {
+        EvolutionSavedData.get(ctx.getSource().getServer()).reset();
+        ctx.getSource().sendSuccess(() -> Component.translatable("evolutionmod.command.reset")
+            .withStyle(ChatFormatting.RED), true);
+        return 1;
     }
 }

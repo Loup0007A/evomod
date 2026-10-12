@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "top": "evolutionmod:block/genetic_lab_top",
+    "front": "evolutionmod:block/genetic_lab_front",
+    "side": "evolutionmod:block/genetic_lab_side"
+  }
+}

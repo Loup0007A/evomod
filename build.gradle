@@ -3,7 +3,7 @@ plugins {
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
-version = '1.0.0'
+version = project.mod_version
 group = 'com.evolutionmod'
 archivesBaseName = 'evolutionmod'
 
@@ -36,6 +36,11 @@ minecraft {
             }
         }
     }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xmaxerrs' << '1000'
 }
 
 repositories {

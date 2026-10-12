@@ -1,0 +1,18 @@
+Manifest-Version: 1.0
+
+Name: net/minecraftforge/versions/forge/
+Specification-Title: Forge
+Specification-Vendor: Forge Development LLC
+Specification-Version: 0.0
+Implementation-Title: net.minecraftforge
+Implementation-Vendor: Forge Development LLC
+Implementation-Version: 52.0.7
+
+Name: net/minecraftforge/versions/mcp/
+Specification-Title: Minecraft
+Specification-Vendor: Forge Development LLC
+Specification-Version: 1.21.1
+Implementation-Title: MCP
+Implementation-Vendor: Forge Development LLC
+Implementation-Version: 20240808.132146
+

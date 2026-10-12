@@ -1,0 +1,66 @@
+package net.minecraft.world.level.levelgen.feature.foliageplacers;
+
+import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.util.RandomSource;
+import net.minecraft.util.valueproviders.IntProvider;
+import net.minecraft.world.level.LevelSimulatedReader;
+import net.minecraft.world.level.levelgen.feature.configurations.TreeConfiguration;
+
+public class PineFoliagePlacer extends FoliagePlacer {
+   public static final MapCodec<PineFoliagePlacer> CODEC = RecordCodecBuilder.mapCodec(
+      p_68698_ -> foliagePlacerParts(p_68698_)
+            .and(IntProvider.codec(0, 24).fieldOf("height").forGetter(p_161500_ -> p_161500_.height))
+            .apply(p_68698_, PineFoliagePlacer::new)
+   );
+   private final IntProvider height;
+
+   public PineFoliagePlacer(IntProvider p_161486_, IntProvider p_161487_, IntProvider p_161488_) {
+      super(p_161486_, p_161487_);
+      this.height = p_161488_;
+   }
+
+   @Override
+   protected FoliagePlacerType<?> type() {
+      return FoliagePlacerType.PINE_FOLIAGE_PLACER;
+   }
+
+   @Override
+   protected void createFoliage(
+      LevelSimulatedReader pLevel,
+      FoliagePlacer.FoliageSetter pBlockSetter,
+      RandomSource pRandom,
+      TreeConfiguration pConfig,
+      int pMaxFreeTreeHeight,
+      FoliagePlacer.FoliageAttachment pAttachment,
+      int pFoliageHeight,
+      int pFoliageRadius,
+      int pOffset
+   ) {
+      int $$9 = 0;
+
+      for (int $$10 = pOffset; $$10 >= pOffset - pFoliageHeight; $$10--) {
+         this.placeLeavesRow(pLevel, pBlockSetter, pRandom, pConfig, pAttachment.pos(), $$9, $$10, pAttachment.doubleTrunk());
+         if ($$9 >= 1 && $$10 == pOffset - pFoliageHeight + 1) {
+            $$9--;
+         } else if ($$9 < pFoliageRadius + pAttachment.radiusOffset()) {
+            $$9++;
+         }
+      }
+   }
+
+   @Override
+   public int foliageRadius(RandomSource pRandom, int pRadius) {
+      return super.foliageRadius(pRandom, pRadius) + pRandom.nextInt(Math.max(pRadius + 1, 1));
+   }
+
+   @Override
+   public int foliageHeight(RandomSource pRandom, int pHeight, TreeConfiguration pConfig) {
+      return this.height.sample(pRandom);
+   }
+
+   @Override
+   protected boolean shouldSkipLocation(RandomSource pRandom, int pLocalX, int pLocalY, int pLocalZ, int pRange, boolean pLarge) {
+      return pLocalX == pRange && pLocalZ == pRange && pRange > 0;
+   }
+}

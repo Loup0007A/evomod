@@ -1,0 +1,163 @@
+package net.minecraft.world.entity.ai.behavior;
+
+import java.util.Comparator;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Predicate;
+import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.entity.ai.Brain;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
+import net.minecraft.world.entity.ai.util.DefaultRandomPos;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ProjectileWeaponItem;
+import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.Vec3;
+
+public class BehaviorUtils {
+   private BehaviorUtils() {
+   }
+
+   public static void lockGazeAndWalkToEachOther(LivingEntity pFirstEntity, LivingEntity pSecondEntity, float pSpeed, int pDistance) {
+      lookAtEachOther(pFirstEntity, pSecondEntity);
+      setWalkAndLookTargetMemoriesToEachOther(pFirstEntity, pSecondEntity, pSpeed, pDistance);
+   }
+
+   public static boolean entityIsVisible(Brain<?> pBrain, LivingEntity pTarget) {
+      Optional<NearestVisibleLivingEntities> $$2 = pBrain.getMemory(MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES);
+      return $$2.isPresent() && $$2.get().contains(pTarget);
+   }
+
+   public static boolean targetIsValid(Brain<?> pBrains, MemoryModuleType<? extends LivingEntity> pMemorymodule, EntityType<?> pEntityType) {
+      return targetIsValid(pBrains, pMemorymodule, p_341298_ -> p_341298_.getType() == pEntityType);
+   }
+
+   private static boolean targetIsValid(Brain<?> pBrain, MemoryModuleType<? extends LivingEntity> pMemoryType, Predicate<LivingEntity> pLivingPredicate) {
+      return pBrain.getMemory(pMemoryType)
+         .filter(pLivingPredicate)
+         .filter(LivingEntity::isAlive)
+         .filter(p_186037_ -> entityIsVisible(pBrain, p_186037_))
+         .isPresent();
+   }
+
+   private static void lookAtEachOther(LivingEntity pFirstEntity, LivingEntity pSecondEntity) {
+      lookAtEntity(pFirstEntity, pSecondEntity);
+      lookAtEntity(pSecondEntity, pFirstEntity);
+   }
+
+   public static void lookAtEntity(LivingEntity pEntity, LivingEntity pTarget) {
+      pEntity.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(pTarget, true));
+   }
+
+   private static void setWalkAndLookTargetMemoriesToEachOther(LivingEntity pFirstEntity, LivingEntity pSecondEntity, float pSpeed, int pDistance) {
+      setWalkAndLookTargetMemories(pFirstEntity, pSecondEntity, pSpeed, pDistance);
+      setWalkAndLookTargetMemories(pSecondEntity, pFirstEntity, pSpeed, pDistance);
+   }
+
+   public static void setWalkAndLookTargetMemories(LivingEntity pLivingEntity, Entity pTarget, float pSpeed, int pDistance) {
+      setWalkAndLookTargetMemories(pLivingEntity, new EntityTracker(pTarget, true), pSpeed, pDistance);
+   }
+
+   public static void setWalkAndLookTargetMemories(LivingEntity pLivingEntity, BlockPos pPos, float pSpeed, int pDistance) {
+      setWalkAndLookTargetMemories(pLivingEntity, new BlockPosTracker(pPos), pSpeed, pDistance);
+   }
+
+   public static void setWalkAndLookTargetMemories(LivingEntity pEntity, PositionTracker pPositionTracker, float pSpeedModifier, int pCloseEnoughDist) {
+      WalkTarget $$4 = new WalkTarget(pPositionTracker, pSpeedModifier, pCloseEnoughDist);
+      pEntity.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, pPositionTracker);
+      pEntity.getBrain().setMemory(MemoryModuleType.WALK_TARGET, $$4);
+   }
+
+   public static void throwItem(LivingEntity pLivingEntity, ItemStack pStack, Vec3 pOffset) {
+      Vec3 $$3 = new Vec3(0.3F, 0.3F, 0.3F);
+      throwItem(pLivingEntity, pStack, pOffset, $$3, 0.3F);
+   }
+
+   public static void throwItem(LivingEntity pEntity, ItemStack pStack, Vec3 pOffset, Vec3 pSpeedMultiplier, float pYOffset) {
+      double $$5 = pEntity.getEyeY() - (double)pYOffset;
+      ItemEntity $$6 = new ItemEntity(pEntity.level(), pEntity.getX(), $$5, pEntity.getZ(), pStack);
+      $$6.setThrower(pEntity);
+      Vec3 $$7 = pOffset.subtract(pEntity.position());
+      $$7 = $$7.normalize().multiply(pSpeedMultiplier.x, pSpeedMultiplier.y, pSpeedMultiplier.z);
+      $$6.setDeltaMovement($$7);
+      $$6.setDefaultPickUpDelay();
+      pEntity.level().addFreshEntity($$6);
+   }
+
+   public static SectionPos findSectionClosestToVillage(ServerLevel pServerLevel, SectionPos pSectionPos, int pRadius) {
+      int $$3 = pServerLevel.sectionsToVillage(pSectionPos);
+      return SectionPos.cube(pSectionPos, pRadius)
+         .filter(p_186017_ -> pServerLevel.sectionsToVillage(p_186017_) < $$3)
+         .min(Comparator.comparingInt(pServerLevel::sectionsToVillage))
+         .orElse(pSectionPos);
+   }
+
+   public static boolean isWithinAttackRange(Mob pMob, LivingEntity pTarget, int pCooldown) {
+      if (pMob.getMainHandItem().getItem() instanceof ProjectileWeaponItem $$3 && pMob.canFireProjectileWeapon($$3)) {
+         int $$4 = $$3.getDefaultProjectileRange() - pCooldown;
+         return pMob.closerThan(pTarget, (double)$$4);
+      }
+
+      return pMob.isWithinMeleeAttackRange(pTarget);
+   }
+
+   public static boolean isOtherTargetMuchFurtherAwayThanCurrentAttackTarget(LivingEntity pLivingEntity, LivingEntity pTarget, double pDistance) {
+      Optional<LivingEntity> $$3 = pLivingEntity.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET);
+      if ($$3.isEmpty()) {
+         return false;
+      } else {
+         double $$4 = pLivingEntity.distanceToSqr($$3.get().position());
+         double $$5 = pLivingEntity.distanceToSqr(pTarget.position());
+         return $$5 > $$4 + pDistance * pDistance;
+      }
+   }
+
+   public static boolean canSee(LivingEntity pLivingEntity, LivingEntity pTarget) {
+      Brain<?> $$2 = pLivingEntity.getBrain();
+      return !$$2.hasMemoryValue(MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES)
+         ? false
+         : $$2.getMemory(MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES).get().contains(pTarget);
+   }
+
+   public static LivingEntity getNearestTarget(LivingEntity pCenterEntity, Optional<LivingEntity> pOptionalEntity, LivingEntity pLivingEntity) {
+      return pOptionalEntity.isEmpty() ? pLivingEntity : getTargetNearestMe(pCenterEntity, pOptionalEntity.get(), pLivingEntity);
+   }
+
+   public static LivingEntity getTargetNearestMe(LivingEntity pCenterEntity, LivingEntity pLivingEntity1, LivingEntity pLivingEntity2) {
+      Vec3 $$3 = pLivingEntity1.position();
+      Vec3 $$4 = pLivingEntity2.position();
+      return pCenterEntity.distanceToSqr($$3) < pCenterEntity.distanceToSqr($$4) ? pLivingEntity1 : pLivingEntity2;
+   }
+
+   public static Optional<LivingEntity> getLivingEntityFromUUIDMemory(LivingEntity pLivingEntity, MemoryModuleType<UUID> pTargetMemory) {
+      Optional<UUID> $$2 = pLivingEntity.getBrain().getMemory(pTargetMemory);
+      return $$2.<Entity>map(p_341300_ -> ((ServerLevel)pLivingEntity.level()).getEntity(p_341300_))
+         .map(p_186019_ -> p_186019_ instanceof LivingEntity $$1 ? $$1 : null);
+   }
+
+   @Nullable
+   public static Vec3 getRandomSwimmablePos(PathfinderMob pPathfinder, int pRadius, int pVerticalDistance) {
+      Vec3 $$3 = DefaultRandomPos.getPos(pPathfinder, pRadius, pVerticalDistance);
+      int $$4 = 0;
+
+      while ($$3 != null && !pPathfinder.level().getBlockState(BlockPos.containing($$3)).isPathfindable(PathComputationType.WATER) && $$4++ < 10) {
+         $$3 = DefaultRandomPos.getPos(pPathfinder, pRadius, pVerticalDistance);
+      }
+
+      return $$3;
+   }
+
+   public static boolean isBreeding(LivingEntity pEntity) {
+      return pEntity.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET);
+   }
+}

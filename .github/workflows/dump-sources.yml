@@ -1,4 +1,4 @@
-name: Dump MC sources (temp)
+name: Dump MC libs (temp)
 on:
   push:
     branches: [ sources-dump ]
@@ -13,30 +13,28 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - run: chmod +x gradlew && ./gradlew compileJava --no-daemon || true
-      - name: Extract sources
+      - name: Collect compile classpath
         run: |
-          mkdir -p /tmp/src
-          find ~/.gradle/caches -name '*.jar' -size +500k -printf '%s %p\n' | sort -n > /tmp/src/jars.txt
-          SRC=$(find ~/.gradle/caches/forge_gradle -name 'forge-1.21.1-52.0.7*sources*.jar' -size +5M | head -1)
-          echo "sources: $SRC" >> /tmp/src/jars.txt
-          if [ -n "$SRC" ]; then
-            cd /tmp/src && unzip -q -o "$SRC" 'net/minecraft/*' 'net/minecraftforge/*' 'com/mojang/*' -d /tmp/src/java || true
-          else
-            BIN=$(find ~/.gradle/caches/forge_gradle -name 'forge-1.21.1-52.0.7_mapped*.jar' ! -name '*sources*' -size +5M | head -1)
-            echo "binary: $BIN" >> /tmp/src/jars.txt
-            curl -sSL -o /tmp/vf.jar https://repo1.maven.org/maven2/org/vineflower/vineflower/1.10.1/vineflower-1.10.1.jar
-            mkdir -p /tmp/src/java
-            java -jar /tmp/vf.jar -only=net/minecraft -only=net/minecraftforge -only=com/mojang "$BIN" /tmp/src/java > /tmp/vf.log 2>&1 || true
-            tail -5 /tmp/vf.log >> /tmp/src/jars.txt
-            # vineflower writes a zip/jar if input is a jar
-            for z in /tmp/src/java/*.jar; do [ -f "$z" ] && (cd /tmp/src/java && unzip -q -o "$z" && rm "$z"); done
-          fi
-          du -sh /tmp/src >> /tmp/src/jars.txt
-      - name: Push to branch
-        run: |
-          cd /tmp/src
-          git init -q -b mc-src
+          chmod +x gradlew
+          cat >> build.gradle <<'G'
+
+          tasks.register('dumpCp') {
+              doLast {
+                  def out = file('/tmp/libs')
+                  out.mkdirs()
+                  configurations.compileClasspath.resolve().each { f ->
+                      if (f.isFile()) { ant.copy(file: f, todir: out) }
+                  }
+              }
+          }
+          G
+          ./gradlew dumpCp --no-daemon
+          ls -la /tmp/libs | head -100
+          du -sh /tmp/libs
+          cd /tmp/libs
+          # GitHub refuse les fichiers > 100 Mo
+          find . -size +95M -print -delete
+          git init -q -b mc-libs
           git config user.email ci@example.com && git config user.name ci
-          git add -A && git commit -qm sources
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" mc-src
+          git add -A && git commit -qm libs
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" mc-libs

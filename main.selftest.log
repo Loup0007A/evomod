@@ -1,0 +1,215 @@
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener Advanced terminal features are not available in this environment
+[18:16:15] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forge_server, nogui]
+[18:16:15] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.12.1+1-LTS
+[18:16:15] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: ModLauncher 10.2.1 starting: java version 21.0.12.1 by Eclipse Adoptium; OS Linux arch amd64 version 6.17.0-1022-azure
+[18:16:15] [main/WARN] [ne.mi.fm.lo.FMLConfig/CORE]: Configuration file /home/runner/work/evomod/evomod/srv/config/fml.toml is not correct. Correcting
+[18:16:15] [main/INFO] [ne.mi.fm.lo.FMLConfig/CORE]: Incorrect key [earlyWindowSkipGLVersions] was corrected from null to []
+[18:16:15] [main/INFO] [ne.mi.fm.lo.FMLConfig/CORE]: Incorrect key [earlyWindowLogHelpMessage] was corrected from null to true
+[18:16:15] [main/INFO] [ne.mi.fm.lo.FMLConfig/CORE]: Incorrect key [earlyWindowSquir] was corrected from null to false
+[18:16:15] [main/INFO] [ne.mi.fm.lo.FMLConfig/CORE]: Incorrect key [earlyWindowShowCPU] was corrected from null to false
+[18:16:15] [main/INFO] [ne.mi.fm.lo.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forge_server
+[18:16:15] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=jar:file:///home/runner/work/evomod/evomod/srv/libraries/org/spongepowered/mixin/0.8.7/mixin-0.8.7.jar!/ Service=ModLauncher Env=SERVER
+[18:16:15] [main/INFO] [ne.mi.fm.lo.mo.JarInJarDependencyLocator/]: No dependencies to load found. Skipping!
+[18:16:16] [main/INFO] [cp.mo.mo.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forge_server' with arguments [nogui]
+[18:16:16] [main/WARN] [os.ut.FileUtil/]: Configuration conflict: there is more than one oshi.properties file on the classpath: [jar:file:///home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.properties, jar:file:/home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.properties, jar:file:///home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.properties, jar:file:/home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.properties]
+[18:16:17] [main/WARN] [os.ut.FileUtil/]: Configuration conflict: there is more than one oshi.architecture.properties file on the classpath: [jar:file:///home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.architecture.properties, jar:file:/home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.architecture.properties, jar:file:///home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.architecture.properties, jar:file:/home/runner/work/evomod/evomod/srv/libraries/com/github/oshi/oshi-core/6.4.10/oshi-core-6.4.10.jar!/oshi.architecture.properties]
+[18:16:20] [modloading-worker-0/INFO] [ne.mi.co.ForgeMod/FORGEMOD]: Forge mod loading, version 52.0.7, for MC 1.21.1 with MCP 20240808.132146
+[18:16:20] [modloading-worker-0/INFO] [ne.mi.co.MinecraftForge/FORGE]: MinecraftForge v52.0.7 Initialized
+[18:16:20] [modloading-worker-0/INFO] [ne.mi.co.ForgeMod/FORGEMOD]: Opening jdk.naming.dns/com.sun.jndi.dns to java.naming
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Configuration file /home/runner/work/evomod/evomod/srv/config/evolutionmod-common.toml is not correct. Correcting
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution was corrected from null to its default, SynchronizedConfig{DataHolder:{}}. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution.mutationRate was corrected from null to its default, 1.0. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution.selectionStrength was corrected from null to its default, 1.0. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution.maxCatchUpCycles was corrected from null to its default, 3. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution.plantEvolution was corrected from null to its default, true. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution.plantAdaptationChance was corrected from null to its default, 0.01. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution.mobAdaptationChance was corrected from null to its default, 0.015. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key evolution.blacklist was corrected from null to its default, []. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key player was corrected from null to its default, SynchronizedConfig{DataHolder:{}}. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key player.playerEvolution was corrected from null to its default, true. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key player.cauldronBrewing was corrected from null to its default, true. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key player.playerExpression was corrected from null to its default, 0.35. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key feedback was corrected from null to its default, SynchronizedConfig{DataHolder:{}}. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key feedback.announceSpeciation was corrected from null to its default, true. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key feedback.dailyReport was corrected from null to its default, true. 
+[18:16:21] [main/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key feedback.geneticDrops was corrected from null to its default, true. 
+[18:16:21] [modloading-worker-0/INFO] [EvolutionMod/]: Evolution Mod prêt : la vie va évoluer.
+[18:16:21] [Forge Version Check/INFO] [ne.mi.fm.VersionChecker/]: [forge] Starting version check at https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json
+[18:16:22] [Forge Version Check/INFO] [ne.mi.fm.VersionChecker/]: [forge] Found status: OUTDATED Current: 52.0.7 Target: 52.1.0
+[18:16:22] [main/INFO] [mojang/YggdrasilAuthenticationService]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[18:16:22] [main/INFO] [minecraft/Main]: No existing world data, creating new world
+[18:16:23] [main/INFO] [minecraft/RecipeManager]: Loaded 1296 recipes
+[18:16:23] [main/INFO] [minecraft/AdvancementTree]: Loaded 1399 advancements
+[18:16:24] [Server thread/INFO] [minecraft/DedicatedServer]: Starting minecraft server version 1.21.1
+[18:16:24] [Server thread/INFO] [minecraft/DedicatedServer]: Loading properties
+[18:16:24] [Server thread/INFO] [minecraft/DedicatedServer]: Default game type: CREATIVE
+[18:16:24] [Server thread/INFO] [minecraft/MinecraftServer]: Generating keypair
+[18:16:24] [Server thread/INFO] [minecraft/DedicatedServer]: Starting Minecraft server on *:25565
+[18:16:24] [Server thread/INFO] [minecraft/ServerConnectionListener]: Using epoll channel type
+[18:16:24] [Server thread/WARN] [minecraft/DedicatedServer]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[18:16:24] [Server thread/WARN] [minecraft/DedicatedServer]: The server will make no attempt to authenticate usernames. Beware.
+[18:16:24] [Server thread/WARN] [minecraft/DedicatedServer]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[18:16:24] [Server thread/WARN] [minecraft/DedicatedServer]: To change this, set "online-mode" to "true" in the server.properties file.
+[18:16:24] [Server thread/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Configuration file ./world/serverconfig/forge-server.toml is not correct. Correcting
+[18:16:24] [Server thread/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key server was corrected from null to its default, SynchronizedConfig{DataHolder:{}}. 
+[18:16:24] [Server thread/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key server.removeErroringBlockEntities was corrected from null to its default, false. 
+[18:16:24] [Server thread/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key server.removeErroringEntities was corrected from null to its default, false. 
+[18:16:24] [Server thread/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key server.fullBoundingBoxLadders was corrected from null to its default, false. 
+[18:16:24] [Server thread/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key server.permissionHandler was corrected from null to its default, forge:default_handler. 
+[18:16:24] [Server thread/WARN] [ne.mi.co.ForgeConfigSpec/CORE]: Incorrect key server.advertiseDedicatedServerToLan was corrected from null to its default, true. 
+[18:16:24] [Server thread/INFO] [minecraft/DedicatedServer]: Preparing level "world"
+[18:16:28] [Server thread/INFO] [minecraft/MinecraftServer]: Preparing start region for dimension minecraft:overworld
+[18:16:28] [Worker-Main-1/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 2%
+[18:16:29] [Worker-Main-1/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 2%
+[18:16:29] [Worker-Main-1/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 2%
+[18:16:30] [Worker-Main-1/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 18%
+[18:16:30] [Worker-Main-2/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 18%
+[18:16:31] [Worker-Main-2/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 51%
+[18:16:31] [Worker-Main-3/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 51%
+[18:16:32] [Worker-Main-1/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 51%
+[18:16:32] [Server thread/INFO] [minecraft/LoggerChunkProgressListener]: Time elapsed: 3621 ms
+[18:16:32] [Server thread/INFO] [minecraft/DedicatedServer]: Done (8.164s)! For help, type "help"
+[18:16:32] [Server thread/INFO] [ne.mi.se.pe.PermissionAPI/]: Successfully initialized permission handler forge:default_handler
+[18:16:32] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] serveur démarré, test dans 60 ticks
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - zombie a un génome : true
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - zombie taille de départ ≈ 1 : 0.9667265007338605
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - zombie PV max raisonnables : 19.430185
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - zombie naît en pleine santé
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow a un génome : true
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow taille de départ ≈ 1 : 1.0970760019123995
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow PV max raisonnables : 9.316131
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow naît en pleine santé
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow a un génome : true
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow taille de départ ≈ 1 : 1.0378002858951552
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow PV max raisonnables : 10.509148
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - cow naît en pleine santé
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - creeper a un génome : true
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - creeper taille de départ ≈ 1 : 1.0137912842839294
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - creeper PV max raisonnables : 17.702393
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - creeper naît en pleine santé
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - spider a un génome : true
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - spider taille de départ ≈ 1 : 1.0407981385266822
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - spider PV max raisonnables : 18.288353
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - spider naît en pleine santé
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - skeleton a un génome : true
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - skeleton taille de départ ≈ 1 : 1.052390748127569
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - skeleton PV max raisonnables : 18.778273
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - skeleton naît en pleine santé
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - villager a un génome : false
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - armor_stand a un génome : false
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #1 (jour 0) : 43 mutations, pression 0.16
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #2 (jour 0) : 58 mutations, pression 0.17
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #3 (jour 0) : 38 mutations, pression 0.18
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #4 (jour 0) : 45 mutations, pression 0.19
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #5 (jour 0) : 36 mutations, pression 0.20
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #6 (jour 0) : 52 mutations, pression 0.20
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #7 (jour 0) : 48 mutations, pression 0.21
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #8 (jour 0) : 52 mutations, pression 0.22
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #9 (jour 0) : 51 mutations, pression 0.23
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #10 (jour 0) : 46 mutations, pression 0.24
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #11 (jour 0) : 50 mutations, pression 0.25
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #12 (jour 0) : 47 mutations, pression 0.26
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #13 (jour 0) : 50 mutations, pression 0.26
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #14 (jour 0) : 54 mutations, pression 0.27
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #15 (jour 0) : 43 mutations, pression 0.28
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #16 (jour 0) : 52 mutations, pression 0.29
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #17 (jour 0) : 52 mutations, pression 0.30
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #18 (jour 0) : 56 mutations, pression 0.30
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #19 (jour 0) : 55 mutations, pression 0.31
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #20 (jour 0) : 65 mutations, pression 0.32
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #21 (jour 0) : 62 mutations, pression 0.33
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #22 (jour 0) : 54 mutations, pression 0.33
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #23 (jour 0) : 58 mutations, pression 0.34
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #24 (jour 0) : 47 mutations, pression 0.35
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #25 (jour 0) : 55 mutations, pression 0.36
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #26 (jour 0) : 58 mutations, pression 0.36
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #27 (jour 0) : 60 mutations, pression 0.37
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #28 (jour 0) : 54 mutations, pression 0.38
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #29 (jour 0) : 51 mutations, pression 0.38
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #30 (jour 0) : 72 mutations, pression 0.39
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #31 (jour 0) : 57 mutations, pression 0.40
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #32 (jour 0) : 54 mutations, pression 0.40
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #33 (jour 0) : 55 mutations, pression 0.41
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #34 (jour 0) : 54 mutations, pression 0.42
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #35 (jour 0) : 58 mutations, pression 0.42
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #36 (jour 0) : 64 mutations, pression 0.43
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #37 (jour 0) : 44 mutations, pression 0.44
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #38 (jour 0) : 67 mutations, pression 0.44
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: evolutionmod.chat.speciation
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #39 (jour 0) : 62 mutations, pression 0.45
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Cycle d'évolution #40 (jour 0) : 60 mutations, pression 0.45
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - 40 cycles exécutés (40)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - des mutations ont eu lieu (2139)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce minecraft:turtle : divergence 0.017 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce minecraft:pig : divergence 0.053 lignées [Lumopigax]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce minecraft:zombie : divergence 0.085 lignées [Umbrazombon]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce minecraft:cow : divergence 0.052 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce minecraft:creeper : divergence 0.055 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce minecraft:spider : divergence 0.089 lignées [Metaspidevex]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce minecraft:skeleton : divergence 0.077 lignées [Pyroskeloid]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:oak : divergence 0.048 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:spruce : divergence 0.060 lignées [Paraspruis]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:birch : divergence 0.066 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:jungle : divergence 0.080 lignées [Parajungloid]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:acacia : divergence 0.055 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:dark_oak : divergence 0.063 lignées [Omnidarora]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:mangrove : divergence 0.072 lignées [Hypermangrrex]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:cherry : divergence 0.051 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:wheat : divergence 0.032 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:carrot : divergence 0.058 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:potato : divergence 0.090 lignées [Neopotvex]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:beetroot : divergence 0.156 lignées [Xenobeetura, Cryptobeetvex]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:sugar_cane : divergence 0.073 lignées [Ferrosugaax]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:melon : divergence 0.059 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:pumpkin : divergence 0.033 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:cactus : divergence 0.048 lignées []
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:nether_wart : divergence 0.202 lignées [Protonetheax, Pyronethix]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   espèce plant:sweet_berry : divergence 0.113 lignées [Omnisweeax]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - les plantes sont suivies
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - taille 2.0 appliquée (2.0)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - vitalité ×2 → 40 PV (40.0)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - retour au neutre → 20 PV (20.0)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - le veau hérite d'un génome croisé (gén. 1)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - sélection positive vers la force
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - clonage : cristal produit
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - clonage : 1 redstone consommée
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - bloc laboratoire présent
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - sérialisation du génome identique
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - sauvegarde du monde rechargée (25 espèces)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Adaptation de minecraft:zombie : CAMOUFLAGE +0.070 (hunted)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - adaptation du zombie : CAMOUFLAGE
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: Adaptation de plant:oak : GROWTH +0.171 (harvest)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - adaptation du chêne : GROWTH
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - feuillages de chêne mutés : 18
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - 3 ingrédients dans le chaudron
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - temps de cuisson entre 15 s et 2 min : 100 s
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - la mixture a des effets génétiques : {SPEED=1.0032528282450988, STRENGTH=-0.5202856473536766, VITALITY=1.329392427084482, AGILITY=1.0819182860530894, TOXIN_RESISTANCE=0.5601494638851854}
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - potion créée
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST]   potion sur une vache : [+VITALITY, +AGILITY, +SPEED, +TOXIN_RESISTANCE] (toxicité 0.0)
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - le chaudron surchargé explose
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - lave ou soufre à la place du chaudron : Block{minecraft:lava}[level=0]
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - catalyseur sur l'araignée
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] ok   - nom d'espèce
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[18:16:35] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+[18:16:35] [Server thread/INFO] [EvolutionMod/]: [SELFTEST] RESULT: OK

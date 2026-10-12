@@ -41,18 +41,42 @@ jobs:
         env:
           GRADLE_OPTS: "-Xmx4g"
 
-      - name: Server self-test (starts a real Forge server)
+      - name: Server self-test (real Forge server + built jar)
         run: |
-          mkdir -p run
-          echo "eula=true" > run/eula.txt
-          printf 'online-mode=false\nspawn-protection=0\nlevel-seed=evolution\n' > run/server.properties
+          VERSION=$(grep '^mod_version' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          FORGE=1.21.1-52.0.7
+          mkdir -p srv && cd srv
+          curl -sSL -o installer.jar "https://maven.minecraftforge.net/net/minecraftforge/forge/${FORGE}/forge-${FORGE}-installer.jar"
+          java -jar installer.jar --installServer . > installer.log 2>&1 || (tail -30 installer.log; exit 1)
+          echo "eula=true" > eula.txt
+          printf 'online-mode=false\nspawn-protection=0\nlevel-seed=evolution\n' > server.properties
+          mkdir -p mods && cp "../build/libs/evolutionmod-${VERSION}.jar" mods/
+          echo "-Devolutionmod.selftest=true" >> user_jvm_args.txt
+          chmod +x run.sh
           set +e
-          EVO_SELFTEST=true timeout 900 ./gradlew runServer --no-daemon > selftest.log 2>&1
+          timeout 600 ./run.sh nogui < /dev/null > ../selftest.log 2>&1
           echo "exit code: $?"
           set -e
-          grep -E "\[SELFTEST\]|Exception|ERROR" selftest.log | head -300 > selftest-summary.log || true
+          cd ..
+          grep -E "\[SELFTEST\]|Exception|ERROR|evolutionmod" selftest.log | head -300 > selftest-summary.log || true
           cat selftest-summary.log
           grep -q "\[SELFTEST\] RESULT: OK" selftest.log
+
+      - name: Client visual test (screenshots of every GUI)
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils > /dev/null
+          mkdir -p run/saves
+          rm -rf run/saves/selftest && cp -r srv/world run/saves/selftest
+          rm -f run/saves/selftest/session.lock
+          printf 'onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\nsoundCategory_master:0.0\nnarrator:0\nguiScale:3\n' > run/options.txt
+          set +e
+          EVO_CLIENTTEST=true LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" \
+            timeout 900 ./gradlew runClient --no-daemon > clienttest.log 2>&1
+          echo "exit code: $?"
+          set -e
+          grep -E "CLIENTTEST|Exception|ERROR" clienttest.log | head -200 || true
+          ls -la run/screenshots || true
 
       - name: Publish build log to the ci-logs branch
         if: always()
@@ -62,6 +86,8 @@ jobs:
           cp build.log "/tmp/logs/${NAME}.log" 2>/dev/null || echo "no log" > "/tmp/logs/${NAME}.log"
           cp selftest.log "/tmp/logs/${NAME}.selftest.log" 2>/dev/null || true
           cp selftest-summary.log "/tmp/logs/${NAME}.selftest-summary.log" 2>/dev/null || true
+          cp clienttest.log "/tmp/logs/${NAME}.clienttest.log" 2>/dev/null || true
+          mkdir -p /tmp/logs/screenshots && cp run/screenshots/*.png /tmp/logs/screenshots/ 2>/dev/null || true
           echo "${{ job.status }} ${GITHUB_SHA}" > "/tmp/logs/${NAME}.status"
           ls -l build/libs >> "/tmp/logs/${NAME}.status" 2>/dev/null || true
           cd /tmp/logs
